@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studiesystem — Fas 0</title>
+<style>
+  :root { --bg:#12131a; --panel:#1a1c26; --line:#2b2e3d; --fg:#e6e8f0; --dim:#9aa0b5;
+          --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --acc:#818cf8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:13px; margin:0 0 20px; }
+  nav { display:flex; gap:8px; margin-bottom:20px; }
+  nav button { flex:1; }
+  button { background:var(--acc); color:#12131a; border:0; border-radius:8px;
+           padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--dim); border:1px solid var(--line); font-weight:500; }
+  button.ghost[aria-current="true"] { color:var(--fg); border-color:var(--acc); }
+  button:disabled { opacity:.5; cursor:default; }
+  section { display:none; }
+  section.on { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  textarea { width:100%; background:#0e0f15; color:var(--fg); border:1px solid var(--line);
+             border-radius:8px; padding:12px; font:inherit; resize:vertical; }
+  label { display:block; font-size:13px; color:var(--dim); margin-bottom:6px; }
+  input[type=range] { width:100%; accent-color:var(--acc); }
+  .row { display:flex; align-items:center; gap:12px; }
+  .tag { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  .q { font-size:18px; margin:8px 0 16px; }
+  .verdict { font-weight:700; }
+  .correct,.correct_incomplete { color:var(--ok); }
+  .partial { color:var(--warn); }
+  .wrong,.confidently_wrong { color:var(--bad); }
+  ul { list-style:none; padding:0; margin:8px 0 0; }
+  li { padding:6px 0; border-top:1px solid var(--line); font-size:14px; }
+  .hit::before { content:"✓ "; color:var(--ok); }
+  .miss::before { content:"✗ "; color:var(--bad); }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:var(--acc); }
+  .msg { color:var(--dim); font-size:14px; }
+  .err { color:var(--bad); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Studiesystem</h1>
+  <p class="sub">Fas 0 — skriv svaret själv, innan du ser facit.</p>
+
+  <nav>
+    <button class="ghost" data-tab="study" aria-current="true">Plugga</button>
+    <button class="ghost" data-tab="import">Importera</button>
+    <button class="ghost" data-tab="progress">Progress</button>
+  </nav>
+
+  <section id="study" class="on">
+    <div id="study-body" class="card msg">Laddar…</div>
+  </section>
+
+  <section id="import">
+    <div class="card">
+      <label for="material">Klistra in kursmaterial. Concepts, frågor och rubriker genereras en gång, här.</label>
+      <textarea id="material" rows="12" placeholder="Klistra in text…"></textarea>
+      <p class="row" style="margin-top:12px">
+        <button id="ingest">Generera frågor</button>
+        <span id="ingest-msg" class="msg"></span>
+      </p>
+    </div>
+  </section>
+
+  <section id="progress">
+    <div id="progress-body" class="card msg">Laddar…</div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+let current = null;
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.detail ?? `${res.status} ${res.statusText}`);
+  return body;
+}
+
+document.querySelectorAll("nav button").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-current", x === b));
+    document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === b.dataset.tab));
+    if (b.dataset.tab === "study") loadNext();
+    if (b.dataset.tab === "progress") loadProgress();
+  };
+});
+
+// --- study ---------------------------------------------------------------
+async function loadNext() {
+  const el = $("#study-body");
+  el.className = "card msg";
+  el.textContent = "Laddar…";
+  try {
+    current = await api("/api/next");
+  } catch (e) {
+    el.className = "card err"; el.textContent = e.message; return;
+  }
+  if (!current) {
+    el.className = "card msg";
+    el.textContent = "Inget är due just nu. Importera material eller kom tillbaka senare.";
+    return;
+  }
+  el.className = "card";
+  // autocomplete/spellcheck off on purpose: retrieval, not recognition (§0.5).
+  el.innerHTML = `
+    <div class="tag">${esc(current.concept_name)} · ${esc(current.type)}</div>
+    <div class="q">${esc(current.prompt)}</div>
+    <label for="answer">Ditt svar</label>
+    <textarea id="answer" rows="6" autocomplete="off" autocorrect="off"
+              autocapitalize="off" spellcheck="false"></textarea>
+    <div style="margin-top:14px">
+      <label for="conf">Hur säker är du? <b id="conf-val">50%</b></label>
+      <input type="range" id="conf" min="0" max="100" value="50">
+    </div>
+    <p class="row" style="margin-top:12px">
+      <button id="submit">Rätta</button>
+      <span id="grade-msg" class="msg"></span>
+    </p>`;
+  $("#conf").oninput = (e) => { $("#conf-val").textContent = e.target.value + "%"; };
+  $("#submit").onclick = submitAnswer;
+  $("#answer").focus();
+}
+
+async function submitAnswer() {
+  const answer = $("#answer").value.trim();
+  if (!answer) { $("#grade-msg").textContent = "Skriv något först."; return; }
+  $("#submit").disabled = true;
+  $("#grade-msg").className = "msg";
+  $("#grade-msg").textContent = "Rättar…";
+  try {
+    const res = await api("/api/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        item_id: current.item_id,
+        answer,
+        confidence: Number($("#conf").value) / 100,
+      }),
+    });
+    renderGrading(res, answer);
+  } catch (e) {
+    $("#submit").disabled = false;
+    $("#grade-msg").className = "err";
+    $("#grade-msg").textContent = e.message;
+  }
+}
+
+function renderGrading(res, answer) {
+  const g = res.grading;
+  const gap = g.confidence_gap;
+  const gapNote = gap >= 0.4
+    ? `<p class="err">Du var ${Math.round(gap * 100)} procentenheter säkrare än vad svaret bar. Det är luckan.</p>`
+    : "";
+  $("#study-body").innerHTML = `
+    <div class="tag">${esc(current.concept_name)}</div>
+    <div class="q">${esc(current.prompt)}</div>
+    <p><span class="verdict ${g.verdict}">${esc(g.verdict)}</span> · ${Math.round(g.score * 100)}%</p>
+    <div class="bar"><i style="width:${Math.round(g.score * 100)}%"></i></div>
+    <ul>${g.rubric_hits.map((h) =>
+      `<li class="${h.hit ? "hit" : "miss"}">${esc(h.id)} — ${esc(h.note)}</li>`).join("")}</ul>
+    <p>${esc(g.feedback)}</p>
+    ${gapNote}
+    <div class="card" style="background:#0e0f15">
+      <div class="tag">Ditt svar</div><p>${esc(answer)}</p>
+      <div class="tag">Referenssvar</div><p>${esc(res.reference_answer)}</p>
+    </div>
+    <div class="card" style="background:#0e0f15">
+      <div class="tag">Följdfråga</div><p>${esc(g.followup_question)}</p>
+    </div>
+    <p class="row">
+      <button id="next">Nästa</button>
+      <span class="msg">Åter om ${res.interval_days < 1
+        ? Math.round(res.interval_days * 24 * 60) + " min"
+        : res.interval_days.toFixed(1) + " dagar"}</span>
+    </p>`;
+  $("#next").onclick = loadNext;
+}
+
+// --- import --------------------------------------------------------------
+$("#ingest").onclick = async () => {
+  const text = $("#material").value.trim();
+  $("#ingest").disabled = true;
+  $("#ingest-msg").className = "msg";
+  $("#ingest-msg").textContent = "Genererar — det här tar en stund och görs bara en gång…";
+  try {
+    const res = await api("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    $("#ingest-msg").textContent = `${res.concepts} concepts, ${res.items} frågor.`;
+    $("#material").value = "";
+  } catch (e) {
+    $("#ingest-msg").className = "err";
+    $("#ingest-msg").textContent = e.message;
+  } finally {
+    $("#ingest").disabled = false;
+  }
+};
+
+// --- progress ------------------------------------------------------------
+async function loadProgress() {
+  const el = $("#progress-body");
+  try {
+    const p = await api("/api/progress");
+    if (!p.concepts.length) { el.className = "card msg"; el.textContent = "Inget importerat än."; return; }
+    el.className = "card";
+    el.innerHTML = `<p class="msg">${p.due_now} due nu</p><ul>${p.concepts.map((c) => {
+      const m = c.mastery === null ? "–" : Math.round(c.mastery * 100) + "%";
+      const gap = c.mean_confidence_gap === null ? ""
+        : ` · gap ${(c.mean_confidence_gap >= 0 ? "+" : "") + Math.round(c.mean_confidence_gap * 100)}`;
+      return `<li>${esc(c.name)} <span class="msg">· vikt ${c.importance} · ${c.reviewed_items}/${c.items} frågor · mastery ${m}${gap}</span>
+        <div class="bar"><i style="width:${c.mastery === null ? 0 : Math.round(c.mastery * 100)}%"></i></div></li>`;
+    }).join("")}</ul>`;
+  } catch (e) {
+    el.className = "card err"; el.textContent = e.message;
+  }
+}
+
+loadNext();
+</script>
+</body>
+</html>
