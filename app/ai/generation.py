@@ -7,23 +7,38 @@ one loop that has to feel frictionless.
 
 from __future__ import annotations
 
-from app.ai.client import block, cached, parse
+import re
+from typing import Callable
+from uuid import uuid4
+
+from app.ai.client import cached, parse
 from app.ai.prompts import CONCEPT_SYSTEM, ITEM_SYSTEM
+from app.budget import BudgetExceeded, current_month, estimate_import_usd
 from app.config import settings
-from app.schemas import DraftConcept, DraftConceptList, DraftItem, DraftItemList
+from app.schemas import (
+    ITEMS_PER_IMPORTANCE,
+    DraftConcept,
+    DraftConceptList,
+    DraftConceptWithItems,
+    DraftItem,
+    DraftItemList,
+    GenerationDraft,
+)
 
 
 def extract_concepts(source_text: str, *, model: str | None = None) -> list[DraftConcept]:
-    """Cheap lane (§5): a draft concept list is classification, not judgment."""
+    """Not the cheap lane, despite §5 — deciding what counts as one concept is
+    judgment, and it is the decision every later cost and every later item
+    inherits. Splitting one idea into four does not just produce four weaker
+    concepts; it generates four items' worth of questions and charges for them.
+    """
     result = parse(
-        model=model or settings.cheap_model,
+        model=model or settings.concept_model,
         system=[cached(CONCEPT_SYSTEM)],
         user=f"<material>\n{source_text}\n</material>\n\nExtract the concepts.",
         output_format=DraftConceptList,
         max_tokens=8000,
-        # Cheap models reject adaptive thinking and effort.
-        thinking=False,
-        effort=None,
+        effort="high",
     )
     return result.concepts
 
@@ -41,7 +56,7 @@ def generate_items(
     in the import, so the material is paid for once per import rather than once
     per concept.
     """
-    n_items = 2 if concept.importance <= 2 else 3 if concept.importance <= 4 else 4
+    n_items = ITEMS_PER_IMPORTANCE[concept.importance]
     result = parse(
         model=model or settings.generation_model,
         system=[cached(ITEM_SYSTEM), cached(f"<material>\n{source_text}\n</material>")],
@@ -59,7 +74,12 @@ def generate_items(
 
 
 def _validate(items: list[DraftItem], concept: DraftConcept) -> list[DraftItem]:
-    """Reject a malformed rubric at import instead of discovering it mid-review."""
+    """Reject a malformed rubric at generation instead of discovering it mid-review.
+
+    Structural checks only — whether the rubric is *right* is what
+    evals/gen_selfcheck.py answers, by grading each reference answer against its
+    own rubric. These are the breaks that make a rubric ungradeable at all.
+    """
     ok: list[DraftItem] = []
     for item in items:
         ids = [c.id for c in item.rubric]
@@ -69,5 +89,62 @@ def _validate(items: list[DraftItem], concept: DraftConcept) -> list[DraftItem]:
             raise ValueError(f"{concept.name}: duplicate rubric ids {ids}")
         if not any(c.required for c in item.rubric):
             raise ValueError(f"{concept.name}: item rubric has no required criterion")
+        bad = [c.id for c in item.rubric if not re.fullmatch(r"[a-z0-9_]+", c.id)]
+        if bad:
+            # Ids are permanent — every stored grading carries them.
+            raise ValueError(f"{concept.name}: rubric ids are not snake_case ascii: {bad}")
         ok.append(item)
     return ok
+
+
+def generate_draft(
+    source_text: str,
+    *,
+    course_id: str,
+    course_name: str,
+    concept_model: str | None = None,
+    item_model: str | None = None,
+    spend_before: float = 0.0,
+    spend_after: Callable[[], float] | None = None,
+) -> GenerationDraft:
+    """Text in, concepts + items out. Stores nothing.
+
+    The split matters: this function is the whole generator, and the only thing
+    standing between it and the database is a human saying yes. A bad item is
+    not a bad answer — it is scheduled, repeated, and graded against for weeks,
+    and by then it is indistinguishable from a bad memory.
+    """
+    concepts = extract_concepts(source_text, model=concept_model)
+
+    # Item generation is one call per concept, each checked against the cap
+    # separately. Without this a large batch runs until the money runs out and
+    # returns a draft that is silently missing its last concepts' items.
+    if spend_after is not None:
+        spent = spend_after()
+        needed = estimate_import_usd(len(concepts))
+        remaining = settings.monthly_budget_usd - spent
+        if needed > remaining:
+            raise BudgetExceeded(spent, settings.monthly_budget_usd, current_month())
+
+    out: list[DraftConceptWithItems] = []
+    n_items = 0
+    for concept in concepts:
+        items = generate_items(concept, source_text, model=item_model)
+        n_items += len(items)
+        out.append(
+            DraftConceptWithItems(
+                name=concept.name,
+                importance=concept.importance,
+                short_explanation=concept.short_explanation,
+                items=items,
+            )
+        )
+
+    return GenerationDraft(
+        draft_id=str(uuid4()),
+        course_id=course_id,
+        course_name=course_name,
+        concepts=out,
+        n_items=n_items,
+        cost_usd=round((spend_after() - spend_before) if spend_after else 0.0, 4),
+    )

@@ -1,16 +1,38 @@
 """Single Anthropic client + the one call shape the whole app uses:
-structured output parsed into a pydantic model."""
+structured output parsed into a pydantic model.
+
+Every paid call in the app goes through parse(), which is also where the
+monthly spend cap is enforced and where usage is metered. Adding a second call
+path would put spending outside the cap — don't.
+"""
 
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Callable, TypeVar
 
 import anthropic
 from pydantic import BaseModel
 
+from app.budget import BudgetExceeded, cost_usd, current_month
+from app.config import settings
+
 T = TypeVar("T", bound=BaseModel)
 
 _client: anthropic.Anthropic | None = None
+
+# Set by app.main at startup. A callable rather than an import so this module
+# does not depend on the store, and so tests can meter into a fake.
+#   spend_reader() -> USD already spent this month
+#   spend_writer(model, cost, usage) -> None
+_spend_reader: Callable[[], float] | None = None
+_spend_writer: Callable[[str, float, object], None] | None = None
+
+
+def set_meter(reader, writer) -> None:
+    """Wire the cap to a ledger. Until this is called, calls are unmetered and
+    uncapped — which is what the eval runner and the unit tests want."""
+    global _spend_reader, _spend_writer
+    _spend_reader, _spend_writer = reader, writer
 
 
 class AIError(RuntimeError):
@@ -51,6 +73,15 @@ def parse(
     if effort:
         kwargs["output_config"] = {"effort": effort}
 
+    # Check before spending, not after. The window between this check and the
+    # call means two concurrent requests can both pass at the boundary and
+    # overshoot by one call — a few cents for a single-user app, and the
+    # alternative (a lock around every API call) costs more than it saves.
+    if _spend_reader is not None:
+        spent = _spend_reader()
+        if spent >= settings.monthly_budget_usd:
+            raise BudgetExceeded(spent, settings.monthly_budget_usd, current_month())
+
     try:
         response = client().messages.parse(**kwargs)
     except anthropic.AuthenticationError as e:
@@ -61,6 +92,11 @@ def parse(
         raise AIError(f"Anthropic API error {e.status_code}: {e.message}") from e
     except anthropic.APIConnectionError as e:
         raise AIError(f"Could not reach the Anthropic API: {e}") from e
+
+    # Meter first: the tokens are billed whether or not the response parses, so
+    # a refusal or a malformed output must still count against the cap.
+    if _spend_writer is not None and response.usage is not None:
+        _spend_writer(model, cost_usd(model, response.usage), response.usage)
 
     if response.stop_reason == "refusal":
         detail = getattr(response.stop_details, "category", None)

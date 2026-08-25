@@ -27,27 +27,37 @@ from app.scoring import score_from_hits, verdict_from  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().parent / "grading_cases.jsonl"
 
+# Ordering on the three statuses, so a diff can say "too generous" vs "too harsh"
+# instead of only "wrong".
+RANK = {"miss": 0, "partial": 1, "hit": 2}
+
 
 def load_cases(path: Path) -> list[dict]:
     """Load and re-derive every expectation. A case whose stored verdict or score
-    range does not follow from its own expected_hits is a broken case, and a
-    broken case silently corrupts the metric it exists to protect."""
+    range does not follow from its own `expected` statuses is a broken case, and
+    a broken case silently corrupts the metric it exists to protect."""
     cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     for c in cases:
         rubric = [RubricCriterion(**r) for r in c["rubric"]]
-        hits = [RubricHit(id=r.id, hit=r.id in c["expected_hits"], note="") for r in rubric]
+        expected = c["expected"]
+        stray = set(expected) ^ {r.id for r in rubric}
+        if stray:
+            raise SystemExit(
+                f"case {c['id']}: `expected` and `rubric` disagree on criteria: {sorted(stray)}"
+            )
+        hits = [RubricHit(id=r.id, status=expected[r.id], note="") for r in rubric]
         score = score_from_hits(rubric, hits)
         verdict = verdict_from(rubric, hits, score, c["confidence"])
         lo, hi = c["expected_score_range"]
         if verdict != c["expected_verdict"]:
             raise SystemExit(
                 f"case {c['id']}: stored verdict {c['expected_verdict']!r} but its own "
-                f"expected_hits imply {verdict!r}"
+                f"`expected` statuses imply {verdict!r}"
             )
         if not lo <= score <= hi:
             raise SystemExit(
                 f"case {c['id']}: expected_score_range {[lo, hi]} excludes the score "
-                f"{score} implied by its own expected_hits"
+                f"{score} implied by its own `expected` statuses"
             )
     return cases
 
@@ -66,8 +76,15 @@ def run_case(case: dict, model: str | None) -> dict:
         return {"id": case["id"], "error": str(e)}
 
     lo, hi = case["expected_score_range"]
-    expected_hits = set(case["expected_hits"])
-    got_hits = {h.id for h in out.rubric_hits if h.hit}
+    expected = case["expected"]
+    got = {h.id: h.status for h in out.rubric_hits}
+
+    # An exact-status diff, so a hit/partial slip shows up as its own class of
+    # error rather than hiding inside the score.
+    over = sorted(f"{i}: {expected[i]}->{got[i]}" for i in expected
+                  if RANK[got.get(i, "miss")] > RANK[expected[i]])
+    under = sorted(f"{i}: {expected[i]}->{got[i]}" for i in expected
+                   if RANK[got.get(i, "miss")] < RANK[expected[i]])
     return {
         "id": case["id"],
         "error": None,
@@ -77,8 +94,8 @@ def run_case(case: dict, model: str | None) -> dict:
         "expected_verdict": case["expected_verdict"],
         "got_verdict": out.verdict,
         "got_score": out.score,
-        "false_positive": sorted(got_hits - expected_hits),
-        "false_negative": sorted(expected_hits - got_hits),
+        "too_generous": over,
+        "too_harsh": under,
         "n_criteria": len(case["rubric"]),
         "feedback": out.feedback,
         "note": case.get("note", ""),
@@ -110,10 +127,10 @@ def main() -> int:
         mark = "ok  " if r["verdict_ok"] and r["score_ok"] else "FAIL"
         print(f"  {mark}   {r['id']:<28} {r['expected_verdict']:<18} -> {r['got_verdict']:<18} score={r['got_score']:.2f}")
         if not r["verdict_ok"] or not r["score_ok"]:
-            if r["false_positive"]:
-                print(f"           credited but should not be: {', '.join(r['false_positive'])}")
-            if r["false_negative"]:
-                print(f"           missed but should be credited: {', '.join(r['false_negative'])}")
+            if r["too_generous"]:
+                print(f"           too generous: {'; '.join(r['too_generous'])}")
+            if r["too_harsh"]:
+                print(f"           too harsh:    {'; '.join(r['too_harsh'])}")
             print(f"           case note: {r['note']}")
             print(f"           feedback:  {r['feedback']}")
         elif args.verbose:
@@ -127,13 +144,16 @@ def main() -> int:
     score_acc = sum(r["score_ok"] for r in graded) / len(graded)
     mean_dev = sum(r["score_dev"] for r in graded) / len(graded)
     total_criteria = sum(r["n_criteria"] for r in graded)
-    wrong_criteria = sum(len(r["false_positive"]) + len(r["false_negative"]) for r in graded)
+    wrong_criteria = sum(len(r["too_generous"]) + len(r["too_harsh"]) for r in graded)
 
     print(f"\n  verdict accuracy      {verdict_acc:.0%}  ({sum(r['verdict_ok'] for r in graded)}/{len(graded)})")
     print(f"  score within range    {score_acc:.0%}")
     print(f"  mean score deviation  {mean_dev:.3f}")
+    generous = sum(len(r["too_generous"]) for r in graded)
+    harsh = sum(len(r["too_harsh"]) for r in graded)
     print(f"  rubric-hit accuracy   {(total_criteria - wrong_criteria) / total_criteria:.0%}"
-          f"  ({wrong_criteria} wrong of {total_criteria} criteria)")
+          f"  ({wrong_criteria} wrong of {total_criteria} criteria: "
+          f"{generous} too generous, {harsh} too harsh)")
     if errors:
         print(f"  errors                {len(errors)}")
 

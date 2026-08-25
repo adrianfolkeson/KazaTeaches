@@ -9,6 +9,24 @@ from pydantic import BaseModel, Field
 
 Verdict = Literal["correct", "correct_incomplete", "partial", "confidently_wrong", "wrong"]
 
+# Three-state rubric judgment. "partial" exists because a vague-but-pointed-the-
+# right-way answer is neither a hit nor a miss, and collapsing it into either one
+# throws away the signal the feedback is built on. Its credit is set in
+# app/scoring.py, not here.
+HitStatus = Literal["hit", "partial", "miss"]
+
+# Concept weight. An enum rather than 1-5: the generator was picking numbers off
+# a scale whose middle had no agreed meaning, and the only thing the number is
+# ever used for is how many items to write and what to study first.
+Importance = Literal["core", "supporting", "nice_to_know"]
+
+# How many items each weight earns. Here rather than in generation.py because it
+# is part of what `importance` *means*.
+ITEMS_PER_IMPORTANCE: dict[str, int] = {"core": 4, "supporting": 3, "nice_to_know": 2}
+
+# Study order, highest first.
+IMPORTANCE_RANK: dict[str, int] = {"core": 3, "supporting": 2, "nice_to_know": 1}
+
 ItemType = Literal[
     "definition",
     "explanation",
@@ -31,7 +49,7 @@ class RubricCriterion(BaseModel):
 
 class RubricHit(BaseModel):
     id: str
-    hit: bool
+    status: HitStatus
     note: str
 
 
@@ -71,7 +89,7 @@ class GraderJudgment(BaseModel):
 
 class DraftConcept(BaseModel):
     name: str
-    importance: int = Field(ge=1, le=5)
+    importance: Importance
     short_explanation: str
 
 
@@ -93,9 +111,43 @@ class DraftItemList(BaseModel):
 # --- API ------------------------------------------------------------------
 
 
-class IngestRequest(BaseModel):
+class GenerateRequest(BaseModel):
+    """Raw pasted material in. `course_id` targets an existing course; without
+    one the draft lands in the default course on confirmation."""
+
     text: str
+    course_id: str | None = None
     course_name: str | None = None
+
+
+class DraftConceptWithItems(BaseModel):
+    """One concept and the items written for it, before anything is stored."""
+
+    name: str
+    importance: Importance
+    short_explanation: str
+    items: list[DraftItem]
+
+
+class GenerationDraft(BaseModel):
+    """The whole generated batch, held for review. Nothing here is in the
+    database yet — §"never save silently": a bad item poisons the schedule for
+    weeks, and by then it is indistinguishable from a bad memory."""
+
+    draft_id: str
+    course_id: str
+    course_name: str
+    concepts: list[DraftConceptWithItems]
+    n_items: int
+    cost_usd: float
+
+
+class ConfirmRequest(BaseModel):
+    draft_id: str
+    # Concept names the reviewer struck out. Everything not listed is saved.
+    reject_concepts: list[str] = []
+    # "<concept name>::<item prompt>" for individual items struck out.
+    reject_items: list[str] = []
 
 
 class IngestResponse(BaseModel):
@@ -114,6 +166,19 @@ class DueItem(BaseModel):
     seen_before: bool
 
 
+class SessionQueue(BaseModel):
+    """Today's sitting. `due_total` is everything overdue; `items` is what fits
+    in one session, interleaved across concepts."""
+
+    course_id: str
+    due_total: int
+    items: list[DueItem]
+    concepts_covered: int
+    capped: bool
+    reviews_done: int
+    reviews_left: int
+
+
 class ReviewRequest(BaseModel):
     item_id: str
     answer: str
@@ -130,7 +195,7 @@ class ReviewResponse(BaseModel):
 class ConceptMastery(BaseModel):
     concept_id: str
     name: str
-    importance: int
+    importance: Importance
     items: int
     reviewed_items: int
     mastery: float | None
@@ -141,3 +206,23 @@ class ProgressResponse(BaseModel):
     course_id: str
     due_now: int
     concepts: list[ConceptMastery]
+
+
+class ModelSpend(BaseModel):
+    model: str
+    calls: int
+    cost_usd: float
+
+
+class BudgetStatus(BaseModel):
+    """What /api/budget reports. `cap` is enforced; `target` only informs."""
+
+    month: str
+    spent_usd: float
+    cap_usd: float
+    target_usd: float
+    remaining_usd: float
+    fraction_of_cap: float
+    over_target: bool
+    exhausted: bool
+    by_model: list[ModelSpend]

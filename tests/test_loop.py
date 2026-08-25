@@ -9,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
-from app.scheduling import interleave, review
 from app.schemas import DraftConcept, DraftItem, GraderJudgment, RubricCriterion, RubricHit
 from app.store import MemoryStore
 
@@ -25,7 +24,7 @@ def client(monkeypatch):
     store = MemoryStore()
     course_id = store.ensure_course(main.settings.course_name)
     concept_id = store.add_concept(
-        course_id, DraftConcept(name="Transaktioner", importance=5, short_explanation="…")
+        course_id, DraftConcept(name="Transaktioner", importance="core", short_explanation="…")
     )
     item_id = store.add_item(
         concept_id,
@@ -46,7 +45,10 @@ def client(monkeypatch):
 def stub_judgment(*hit_ids: str):
     def _parse(**kwargs):
         return GraderJudgment(
-            rubric_hits=[RubricHit(id=c.id, hit=c.id in hit_ids, note="") for c in RUBRIC],
+            rubric_hits=[
+                RubricHit(id=c.id, status="hit" if c.id in hit_ids else "miss", note="")
+                for c in RUBRIC
+            ],
             feedback="stub",
             followup_question="stub?",
         )
@@ -99,7 +101,7 @@ def test_a_grader_that_skips_a_criterion_does_not_produce_a_review(client, monke
     """Fail loud: a malformed grading must not be written to the review log."""
     def bad(**kwargs):
         return GraderJudgment(
-            rubric_hits=[RubricHit(id="atomicity", hit=True, note="")],
+            rubric_hits=[RubricHit(id="atomicity", status="hit", note="")],
             feedback="…",
             followup_question="…",
         )
@@ -117,23 +119,57 @@ def test_an_empty_answer_is_rejected(client):
     assert r.status_code == 422
 
 
-def test_queue_interleaves_concepts_instead_of_blocking_them():
-    queue = interleave(
-        [
-            {"concept_id": "a", "item_id": "a1"},
-            {"concept_id": "a", "item_id": "a2"},
-            {"concept_id": "a", "item_id": "a3"},
-            {"concept_id": "b", "item_id": "b1"},
-            {"concept_id": "b", "item_id": "b2"},
-        ]
-    )
-    concepts = [row["concept_id"] for row in queue]
-    assert len(queue) == 5
-    # Only the tail may repeat, once the smaller concept has run out.
-    assert concepts[:4] == ["a", "b", "a", "b"]
+def test_the_sitting_ends_on_its_cap_even_when_items_are_still_due(client, monkeypatch):
+    """The cap has to count reviews, not just truncate a list. An item the
+    student never masters is always due — FSRS puts a half-known one back in six
+    minutes — so without a counted cap /api/next keeps handing back the same
+    item until the month's budget is gone.
+
+    The item is forced back into the queue after each review, so what ends the
+    sitting here is the cap and nothing else.
+    """
+    monkeypatch.setattr("app.ai.grading.parse", stub_judgment("atomicity"))
+    monkeypatch.setattr(main.settings, "session_max_items", 3)
+
+    served = 0
+    while client.get("/api/next").json() is not None:
+        r = client.post(
+            "/api/review",
+            json={"item_id": client.item_id, "answer": "halvt svar", "confidence": 0.5},
+        )
+        assert r.status_code == 200
+        served += 1
+        assert served <= 5, "the sitting never ended"
+        # Forget the schedule, so the item is due again on the next call.
+        client.store.reviews.clear()
+
+    assert served == 3
+    body = client.get("/api/session").json()
+    assert body["reviews_done"] == 3
+    assert body["reviews_left"] == 0
+    assert body["due_total"] == 1, "the item is still due — the sitting is what ended"
 
 
-def test_a_confidently_wrong_answer_is_scheduled_sooner_than_a_correct_one():
-    _, soon = review(None, 0.3, "confidently_wrong")
-    _, later = review(None, 1.0, "correct")
-    assert soon < later
+def test_the_sitting_also_ends_when_nothing_is_due(client, monkeypatch):
+    """The other reason to stop: everything is scheduled forward."""
+    monkeypatch.setattr("app.ai.grading.parse", stub_judgment("atomicity", "commit_rollback", "acid"))
+    client.post("/api/review",
+                json={"item_id": client.item_id, "answer": "fullt svar", "confidence": 0.8})
+
+    assert client.get("/api/next").json() is None
+    body = client.get("/api/session").json()
+    assert body["due_total"] == 0
+    assert body["reviews_left"] > 0, "the cap was not what stopped it"
+
+
+def test_a_new_sitting_starts_on_a_new_day(client, monkeypatch):
+    """Yesterday's cap must not lock today out."""
+    monkeypatch.setattr("app.ai.grading.parse", stub_judgment("atomicity"))
+    monkeypatch.setattr(main.settings, "session_max_items", 1)
+
+    client.post("/api/review",
+                json={"item_id": client.item_id, "answer": "svar", "confidence": 0.5})
+    assert client.get("/api/next").json() is None
+
+    main._sitting["day"] = None  # the day rolled over
+    assert client.get("/api/session").json()["reviews_done"] == 0

@@ -12,7 +12,8 @@ create table if not exists concepts (
     id                 uuid primary key default gen_random_uuid(),
     course_id          uuid not null references courses(id) on delete cascade,
     name               text not null,
-    importance         int  not null default 3,   -- 1..5, drives generation depth
+    importance        text not null
+        check (importance in ('core', 'supporting', 'nice_to_know')),
     short_explanation  text not null default '',
     created_at         timestamptz not null default now()
 );
@@ -36,7 +37,7 @@ create table if not exists reviews (
     item_id      uuid not null references items(id) on delete cascade,
     answer       text not null,
     score        double precision not null,
-    rubric_hits  jsonb not null,                  -- [{id, hit, note}]
+    rubric_hits  jsonb not null,                  -- [{id, status: hit|partial|miss, note}]
     verdict      text not null,
     confidence   double precision not null,       -- asked BEFORE the answer is revealed (§1.3)
     fsrs_state   jsonb not null,                  -- fsrs.Card.to_dict()
@@ -45,3 +46,19 @@ create table if not exists reviews (
 );
 create index if not exists reviews_item_idx on reviews (item_id, reviewed_at desc);
 create index if not exists reviews_due_idx  on reviews (due_at);
+
+-- Spend ledger for the monthly cap (app/budget.py). One row per paid API call.
+-- `month` is the UTC calendar month 'YYYY-MM' — the same boundary the invoice
+-- uses, so the cap resets when the bill does.
+create table if not exists api_spend (
+    id                 uuid primary key default gen_random_uuid(),
+    month              text not null,
+    model              text not null,
+    cost_usd           double precision not null,
+    input_tokens       integer not null,
+    output_tokens      integer not null,      -- thinking tokens are billed here
+    cache_read_tokens  integer not null,
+    cache_write_tokens integer not null,
+    spent_at           timestamptz not null default now()
+);
+create index if not exists api_spend_month_idx on api_spend (month);

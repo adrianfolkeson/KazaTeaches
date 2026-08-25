@@ -4,10 +4,9 @@ what a verdict is allowed to mean — not the arithmetic for its own sake."""
 from __future__ import annotations
 
 import pytest
-from fsrs import Rating
 
 from app.schemas import RubricCriterion as C, RubricHit as H
-from app.scoring import confidence_gap, rating_from, score_from_hits, verdict_from
+from app.scoring import confidence_gap, score_from_hits, verdict_from
 
 RUBRIC = [
     C(id="req_a", required=True, desc="a"),
@@ -16,12 +15,15 @@ RUBRIC = [
 ]
 
 
-def hits(*hit_ids: str) -> list[H]:
-    return [H(id=c.id, hit=c.id in hit_ids, note="") for c in RUBRIC]
+def hits(*hit_ids: str, partial: tuple[str, ...] = ()) -> list[H]:
+    return [
+        H(id=c.id, status="hit" if c.id in hit_ids else "partial" if c.id in partial else "miss", note="")
+        for c in RUBRIC
+    ]
 
 
-def grade(*hit_ids: str, confidence: float = 0.5):
-    h = hits(*hit_ids)
+def grade(*hit_ids: str, partial: tuple[str, ...] = (), confidence: float = 0.5):
+    h = hits(*hit_ids, partial=partial)
     score = score_from_hits(RUBRIC, h)
     return score, verdict_from(RUBRIC, h, score, confidence)
 
@@ -64,9 +66,9 @@ def test_nothing_hit_and_no_overconfidence_is_wrong():
 def test_a_skipped_criterion_fails_loudly():
     """A grader that answers two of three criteria must not silently produce a
     score built on the two it felt like judging."""
-    partial = [H(id="req_a", hit=True, note=""), H(id="opt_c", hit=False, note="")]
+    incomplete = [H(id="req_a", status="hit", note=""), H(id="opt_c", status="miss", note="")]
     with pytest.raises(ValueError, match="req_b"):
-        score_from_hits(RUBRIC, partial)
+        score_from_hits(RUBRIC, incomplete)
 
 
 def test_empty_rubric_is_an_error_not_a_free_pass():
@@ -79,17 +81,36 @@ def test_confidence_gap_is_signed():
     assert confidence_gap(0.2, 0.9) == pytest.approx(-0.7)
 
 
-def test_confidently_wrong_always_resets_the_interval():
-    """Even a half-decent score gets Again when the student was sure — being
-    sure and wrong is the failure mode spaced repetition exists to catch."""
-    assert rating_from(0.6, "confidently_wrong") == Rating.Again
-    assert rating_from(0.6, "partial") == Rating.Hard
+def test_a_partial_is_worth_half_of_its_criterion():
+    """A vague-but-right-direction answer must land between the miss and the hit,
+    or `partial` is just a second name for one of them."""
+    missed, _ = grade("req_a", confidence=0.5)
+    halfway, _ = grade("req_a", partial=("req_b",), confidence=0.5)
+    full, _ = grade("req_a", "req_b", confidence=0.5)
+    assert missed < halfway < full
+    assert halfway == pytest.approx(0.6)
 
 
-@pytest.mark.parametrize(
-    "score,expected",
-    [(0.0, Rating.Again), (0.39, Rating.Again), (0.4, Rating.Hard),
-     (0.69, Rating.Hard), (0.7, Rating.Good), (0.89, Rating.Good), (1.0, Rating.Easy)],
-)
-def test_score_maps_monotonically_onto_fsrs_ratings(score, expected):
-    assert rating_from(score, "partial") == expected
+def test_partial_required_criteria_are_not_correct():
+    """Half-expressing every must-have is not knowing the answer."""
+    _, verdict = grade(partial=("req_a", "req_b"), confidence=0.5)
+    assert verdict not in ("correct", "correct_incomplete")
+
+
+def test_a_partial_required_criterion_still_reads_as_incomplete_not_partial():
+    """One must-have fully there, the other clearly gestured at, plus the
+    optional: the student has the idea and is missing precision, which is a
+    different diagnosis than having half the answer."""
+    score, verdict = grade("req_a", "opt_c", partial=("req_b",), confidence=0.5)
+    assert score == pytest.approx(0.8)
+    assert verdict == "correct_incomplete"
+
+
+def test_correct_tolerates_a_half_expressed_optional_but_not_a_missing_one():
+    """CORRECT_SCORE is slack, deliberately: every must-have fully there and the
+    optional nuance gestured at is a correct answer. Losing the optional
+    outright is not — that is the gap worth telling the student about."""
+    gestured, gestured_verdict = grade("req_a", "req_b", partial=("opt_c",), confidence=0.5)
+    dropped, dropped_verdict = grade("req_a", "req_b", confidence=0.5)
+    assert (gestured, gestured_verdict) == (pytest.approx(0.9), "correct")
+    assert (dropped, dropped_verdict) == (pytest.approx(0.8), "correct_incomplete")

@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from app.budget import current_month
 from app.config import settings
-from app.schemas import DraftConcept, DraftItem
+from app.schemas import IMPORTANCE_RANK, DraftConcept, DraftItem
 
 
 def _now() -> datetime:
@@ -28,6 +29,7 @@ class MemoryStore:
         self.concepts: dict[str, dict] = {}
         self.items: dict[str, dict] = {}
         self.reviews: list[dict] = []
+        self.spend: list[dict] = []
 
     def ensure_course(self, name: str) -> str:
         for cid, c in self.courses.items():
@@ -101,6 +103,45 @@ class MemoryStore:
         out.sort(key=lambda r: (r["due_at"] is not None, r["due_at"] or now))
         return out
 
+    # --- spend ledger (app/budget.py) --------------------------------------
+
+    def record_spend(self, model: str, cost_usd: float, usage: object) -> None:
+        def tok(name: str) -> int:
+            return getattr(usage, name, None) or 0
+
+        self.spend.append(
+            {
+                "id": str(uuid4()),
+                "month": current_month(),
+                "model": model,
+                "cost_usd": cost_usd,
+                "input_tokens": tok("input_tokens"),
+                "output_tokens": tok("output_tokens"),
+                "cache_read_tokens": tok("cache_read_input_tokens"),
+                "cache_write_tokens": tok("cache_creation_input_tokens"),
+                "spent_at": _now(),
+            }
+        )
+
+    def month_spend(self, month: str | None = None) -> float:
+        month = month or current_month()
+        return round(sum(r["cost_usd"] for r in self.spend if r["month"] == month), 6)
+
+    def spend_breakdown(self, month: str | None = None) -> list[dict]:
+        month = month or current_month()
+        by_model: dict[str, dict] = {}
+        for r in self.spend:
+            if r["month"] != month:
+                continue
+            agg = by_model.setdefault(
+                r["model"], {"model": r["model"], "calls": 0, "cost_usd": 0.0}
+            )
+            agg["calls"] += 1
+            agg["cost_usd"] += r["cost_usd"]
+        for agg in by_model.values():
+            agg["cost_usd"] = round(agg["cost_usd"], 6)
+        return sorted(by_model.values(), key=lambda r: -r["cost_usd"])
+
     def progress(self, course_id: str) -> list[dict]:
         rows = []
         for concept in self.concepts.values():
@@ -122,7 +163,7 @@ class MemoryStore:
                     ),
                 }
             )
-        rows.sort(key=lambda r: (-r["importance"], r["name"]))
+        rows.sort(key=lambda r: (-IMPORTANCE_RANK[r["importance"]], r["name"]))
         return rows
 
 
@@ -238,6 +279,50 @@ class PostgresStore:
             row["concept_id"] = str(row["concept_id"])
         return rows
 
+    # --- spend ledger (app/budget.py) --------------------------------------
+
+    def record_spend(self, model: str, cost_usd: float, usage: object) -> None:
+        def tok(name: str) -> int:
+            return getattr(usage, name, None) or 0
+
+        with self._conn() as conn:
+            conn.execute(
+                "insert into api_spend (id, month, model, cost_usd, input_tokens,"
+                "                       output_tokens, cache_read_tokens, cache_write_tokens)"
+                " values (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    str(uuid4()),
+                    current_month(),
+                    model,
+                    cost_usd,
+                    tok("input_tokens"),
+                    tok("output_tokens"),
+                    tok("cache_read_input_tokens"),
+                    tok("cache_creation_input_tokens"),
+                ),
+            )
+
+    def month_spend(self, month: str | None = None) -> float:
+        with self._conn() as conn:
+            row = conn.execute(
+                "select coalesce(sum(cost_usd), 0) as total from api_spend where month = %s",
+                (month or current_month(),),
+            ).fetchone()
+        return round(float(row["total"]), 6)
+
+    def spend_breakdown(self, month: str | None = None) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "select model, count(*) as calls, sum(cost_usd) as cost_usd"
+                "  from api_spend where month = %s"
+                " group by model order by sum(cost_usd) desc",
+                (month or current_month(),),
+            ).fetchall()
+        for row in rows:
+            row["cost_usd"] = round(float(row["cost_usd"]), 6)
+            row["calls"] = int(row["calls"])
+        return rows
+
     def progress(self, course_id: str) -> list[dict]:
         with self._conn() as conn:
             rows = conn.execute(
@@ -254,7 +339,9 @@ class PostgresStore:
                 "  ) r on true"
                 " where c.course_id = %s"
                 " group by c.id, c.name, c.importance"
-                " order by c.importance desc, c.name",
+                " order by case c.importance"
+                "            when 'core' then 3 when 'supporting' then 2 else 1 end desc,"
+                "          c.name",
                 (course_id,),
             ).fetchall()
         for row in rows:
