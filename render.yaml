@@ -1,0 +1,59 @@
+# Render blueprint. Deploy with "New > Blueprint" pointed at this repo; Render
+# reads this file and creates the service. No CLI, no Dockerfile.
+#
+# Why a web service and not a serverless function: app/main.py keeps the day's
+# sitting (`_sitting`) and unconfirmed generation drafts (`_drafts`) in process
+# memory. Several instances would each hold their own, so the per-day review cap
+# would be per-instance and a draft generated on one would not exist on the one
+# that gets the save. One container, always the same one.
+services:
+  - type: web
+    name: kazateaches
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    # One worker on purpose — see above. Free tier gives one container anyway,
+    # but this makes the reason explicit rather than accidental.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # 3.14 is newer than Render's default; pin it so a build does not shift
+      # under the app between deploys.
+      - key: PYTHON_VERSION
+        value: "3.13.4"
+
+      # Set in the dashboard, never here. sync:false means Render prompts for it
+      # and keeps it out of the repo.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Supabase session-pooler connection string (§25). Without it the app runs
+      # on the in-memory store and every review dies with the container.
+      - key: DATABASE_URL
+        sync: false
+
+      # The access gate. Render generates it; read it once from the dashboard.
+      - key: KT_ACCESS_KEY
+        generateValue: true
+
+      # Spend cap. The ledger lives in Postgres, so this survives a redeploy.
+      - key: KT_MONTHLY_BUDGET_USD
+        value: "20"
+      - key: KT_MONTHLY_TARGET_USD
+        value: "10"
+
+      - key: KT_SESSION_MAX_ITEMS
+        value: "20"
+      - key: KT_SESSION_MAX_MINUTES
+        value: "25"
+      - key: KT_SESSION_MAX_PER_ITEM
+        value: "3"
+
+      - key: KT_GRADING_MODEL
+        value: claude-opus-5
+      - key: KT_GENERATION_MODEL
+        value: claude-sonnet-5
+      - key: KT_CONCEPT_MODEL
+        value: claude-opus-5

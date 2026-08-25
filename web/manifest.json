@@ -1,0 +1,16 @@
+{
+  "name": "KazaTeaches",
+  "short_name": "KazaTeaches",
+  "description": "Spaced repetition på fritextsvar, rättade mot en fast rubric.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f2f2",
+  "theme_color": "#f3f2f2",
+  "lang": "sv",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

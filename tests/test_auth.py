@@ -1,0 +1,122 @@
+"""The access gate. Not a security system — a single shared secret for a single
+user — but it is the only thing between a public URL and a spendable API key,
+so its failure modes are worth pinning down."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import main
+from app.auth import COOKIE
+from app.store import MemoryStore
+
+KEY = "s3cret-access-key"
+
+
+@pytest.fixture
+def guarded(monkeypatch):
+    monkeypatch.setenv("KT_ACCESS_KEY", KEY)
+    monkeypatch.setattr(main, "store", MemoryStore())
+    with TestClient(main.app, follow_redirects=False) as c:
+        yield c
+
+
+@pytest.fixture
+def open_app(monkeypatch):
+    monkeypatch.delenv("KT_ACCESS_KEY", raising=False)
+    monkeypatch.setattr(main, "store", MemoryStore())
+    with TestClient(main.app) as c:
+        yield c
+
+
+def test_a_spending_endpoint_is_refused_without_the_key(guarded):
+    """The one that matters: /api/review calls the grader, which costs money."""
+    r = guarded.post("/api/review", json={"item_id": "x", "answer": "a", "confidence": 0.5})
+    assert r.status_code == 401
+
+
+def test_the_shell_itself_is_refused(guarded):
+    assert guarded.get("/").status_code == 401
+    assert guarded.get("/app.js").status_code == 401
+
+
+def test_a_wrong_key_is_refused(guarded):
+    assert guarded.get("/?k=not-the-key").status_code == 401
+
+
+def test_the_key_in_the_query_sets_a_cookie_and_redirects_it_out_of_the_url(guarded):
+    """The secret must not survive in history, in a screenshot, or in the PWA's
+    saved start_url."""
+    r = guarded.get(f"/?k={KEY}")
+    assert r.status_code == 303
+    assert "k=" not in r.headers["location"]
+
+    cookie = r.cookies.get(COOKIE)
+    assert cookie == KEY
+    set_cookie = r.headers["set-cookie"]
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=lax" in set_cookie.replace("samesite", "SameSite")
+
+
+def test_the_cookie_alone_is_enough_afterwards(guarded):
+    guarded.cookies.set(COOKIE, KEY)
+    assert guarded.get("/api/session").status_code == 200
+
+
+def test_health_stays_open_so_the_platform_can_probe_it(guarded):
+    """A gated health check is a service the platform restarts forever."""
+    r = guarded.get("/api/health")
+    assert r.status_code == 200
+    assert r.json()["store"] == "memory"
+
+
+def test_an_unset_key_disables_the_gate_for_local_use(open_app):
+    assert open_app.get("/api/session").status_code == 200
+
+
+# --- deployment plumbing ---------------------------------------------------
+
+
+def test_the_schema_bootstrap_runs_every_statement_in_schema_sql(monkeypatch):
+    """A fresh database has to be usable on first boot. Verified without a
+    Postgres by watching what the store hands the connection."""
+    from app import store as store_mod
+
+    executed: list[str] = []
+
+    class FakeConn:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def execute(self, sql, *args): executed.append(sql)
+
+    pg = object.__new__(store_mod.PostgresStore)
+    monkeypatch.setattr(store_mod.PostgresStore, "_conn", lambda self: FakeConn())
+    pg.ensure_schema()
+
+    assert len(executed) == 1, "the whole file goes in one statement batch"
+    sql = executed[0]
+    for table in ("courses", "concepts", "items", "reviews", "api_spend"):
+        assert f"create table if not exists {table}" in sql, table
+
+
+def test_every_statement_in_the_schema_is_idempotent():
+    """ensure_schema runs on every boot, so a statement without a guard would
+    fail the second deploy — after the first one had already worked."""
+    import re
+
+    from app.store import SCHEMA
+
+    sql = re.sub(r"--.*", "", SCHEMA.read_text(encoding="utf-8"))
+    statements = [s.strip() for s in sql.split(";") if s.strip()]
+    assert statements, "schema.sql is empty"
+    for s in statements:
+        assert re.match(r"create (table|index) if not exists", s, re.I), s[:70]
+
+
+def test_the_memory_store_has_the_same_bootstrap_call():
+    """main.py calls ensure_schema() unconditionally; the memory store must
+    answer it rather than crash local development."""
+    from app.store import MemoryStore
+
+    MemoryStore().ensure_schema()

@@ -8,6 +8,7 @@ startup and /api/health reports which one is live.
 from __future__ import annotations
 
 import json
+import pathlib
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -21,8 +22,14 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+SCHEMA = pathlib.Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+
+
 class MemoryStore:
     backend = "memory"
+
+    def ensure_schema(self) -> None:
+        """Nothing to create — the dicts are the schema."""
 
     def __init__(self) -> None:
         self.courses: dict[str, dict] = {}
@@ -180,6 +187,22 @@ class PostgresStore:
 
     def _conn(self):
         return self._psycopg.connect(self._dsn, row_factory=self._row_factory, autocommit=True)
+
+    def ensure_schema(self) -> None:
+        """Apply db/schema.sql on every boot.
+
+        Every statement in it is `create ... if not exists`, so this is a no-op
+        on an existing database and the whole schema on a fresh one. That means
+        a redeploy against a new database just works, and a redeploy against the
+        old one changes nothing — which is the property that lets the data
+        outlive the container.
+
+        It does NOT migrate. A column whose type changed (importance: int ->
+        text) needs an explicit `alter table`; this would silently leave the old
+        one in place. See README, "Deploying".
+        """
+        with self._conn() as conn:
+            conn.execute(SCHEMA.read_text(encoding="utf-8"))
 
     def ensure_course(self, name: str) -> str:
         with self._conn() as conn:

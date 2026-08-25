@@ -1,0 +1,472 @@
+/* Broadsheet — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #0088b0;
+  --color-accent-2: #d6006c;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #e9f8ff;
+  --color-accent-200: #cbeeff;
+  --color-accent-300: #99e0ff;
+  --color-accent-400: #62c5ee;
+  --color-accent-500: #38a6cf;
+  --color-accent-600: #1186ac;
+  --color-accent-700: #006786;
+  --color-accent-800: #004961;
+  --color-accent-900: #0a303e;
+
+  --color-accent-2-100: #fff1f4;
+  --color-accent-2-200: #ffdee6;
+  --color-accent-2-300: #ffc0d0;
+  --color-accent-2-400: #ff90b1;
+  --color-accent-2-500: #ff458e;
+  --color-accent-2-600: #d82071;
+  --color-accent-2-700: #aa0b56;
+  --color-accent-2-800: #790e3d;
+  --color-accent-2-900: #4b1528;
+
+  /* The third process ink. Broadsheet reserved it for print treatments, which
+     this app dropped along with the photo machinery — it is kept as the one
+     warning tone that is neither accent: the budget bar over target. */
+  --color-process-yellow: #edbb00;
+
+  --font-heading: "Source Serif 4", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Source Serif 4", system-ui, sans-serif;
+
+  --space-1: 5.0px;
+  --space-2: 10.0px;
+  --space-3: 15.0px;
+  --space-4: 20.0px;
+  --space-6: 30.0px;
+  --space-8: 40.0px;
+
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components — built with the tokens above. Plain CSS
+   on plain HTML: no JavaScript, no build step.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; }
+h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — rules — */
+.hr {
+  height: 1px; border: 0; margin: var(--space-4) 0;
+  background: var(--color-divider);
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
+     the pair sits side by side in sign-up rows */
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input::placeholder { color: color-mix(in srgb, var(--color-text) 65%, transparent); opacity: 1; }
+  /* explicit, measured: the browser default gray misses the 4.5:1 small-text bar on
+     the surface fill; 65% ink measures 4.8:1 there, still a step quieter than typed
+     text (opacity:1 overrides Firefox's default placeholder fade) */
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.radio input, .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--color-divider);
+}
+.radio:hover .dot { border-color: var(--color-accent); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: none;
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+
+/* — tables — */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
+}
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 20px;
+}
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   KazaTeaches — additions to Broadsheet.
+
+   Two things the design system does not ship: a monospace treatment (this
+   material is code-heavy) and the app's own screen furniture. Everything here
+   is built from Broadsheet's own tokens; no new colours, no new spacing values.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Monospace. Broadsheet is a serif system set in Source Serif 4, so code has to
+   read as a different *kind* of text without becoming a different design: same
+   ink, same rhythm, a tinted ground rather than a border, and the accent
+   reserved for the rule that marks it as set matter. */
+:root {
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --mono-size: 0.875em;
+  --mono-ground: var(--color-neutral-200);
+}
+
+code, kbd, samp, .kt-code {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0;
+}
+
+/* Inline code: a tinted ground, never a box. A border at this size fights the
+   serif line it sits inside. */
+:not(pre) > code {
+  background: var(--mono-ground);
+  padding: 0.1em 0.34em;
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-900);
+}
+
+/* Block code: set matter. The accent rule on the left is the same device the
+   feedback block uses, so a code sample and an editorial aside read as the same
+   family of interruption. */
+pre.kt-code {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--mono-ground);
+  border-left: 2px solid var(--color-accent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  overflow-x: auto;
+  line-height: 1.6;
+  color: var(--color-neutral-900);
+  -webkit-overflow-scrolling: touch;
+}
+pre.kt-code code { background: none; padding: 0; font-size: 13px; }
+
+/* Numbers that must not jitter as they count: score, gap, budget, tick counts. */
+.kt-num { font-variant-numeric: tabular-nums; }
+
+/* ── screen furniture ─────────────────────────────────────────────────── */
+
+.kt-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 460px;
+  margin: 0 auto;
+  background: var(--color-bg);
+}
+.kt-screen { display: none; flex-direction: column; flex: 1; }
+.kt-screen[data-on] { display: flex; animation: ktRise 260ms ease-out; }
+
+.kt-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.kt-h2 {
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  margin: var(--space-8) 0 var(--space-3);
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+
+.kt-btn {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-neutral-100);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 18px;
+  cursor: pointer;
+}
+.kt-btn:hover:not(:disabled) { background: var(--color-accent-600); }
+.kt-btn:active:not(:disabled) { background: var(--color-accent-700); }
+.kt-btn:disabled { opacity: 0.4; cursor: default; }
+.kt-btn-ghost {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent);
+  min-height: 48px;
+  font-size: 15px;
+  font-weight: 400;
+}
+.kt-btn-ghost:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.kt-link {
+  background: none; border: 0; padding: var(--space-2); cursor: pointer;
+  white-space: nowrap; flex: 0 0 auto;
+  font-family: var(--font-body); font-size: 13px;
+  text-decoration: underline; text-underline-offset: 3px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.kt-link:hover { color: var(--color-text); }
+
+/* Confidence: five presses, thumb-sized, before the answer is graded. */
+.kt-conf { display: flex; gap: 4px; }
+.kt-conf button {
+  flex: 1; min-height: 62px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 0 2px; cursor: pointer;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  background: var(--color-neutral-100);
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+}
+.kt-conf button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-neutral-100);
+  border-color: var(--color-accent);
+}
+.kt-conf .n { font-family: var(--font-heading); font-size: 15px; font-variant-numeric: tabular-nums; }
+.kt-conf .l { font-size: 10px; line-height: 1.1; text-align: center; }
+
+/* Verdict. Five readings, and the point of the design is that they are not a
+   severity ramp: `confidently_wrong` is the second accent, not a darker red,
+   because being sure and wrong is a different event from being wrong. */
+.kt-verdict { padding-top: var(--space-2); }
+.kt-verdict .v {
+  font-family: var(--font-heading);
+  font-size: 34px; line-height: 1; letter-spacing: -0.02em;
+}
+.kt-verdict .sub {
+  font-size: 13px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.kt-verdict[data-v="correct"]            { border-top: 4px solid var(--color-text); }
+.kt-verdict[data-v="correct_incomplete"] { border-top: 4px solid var(--color-accent); }
+.kt-verdict[data-v="correct_incomplete"] .v { color: var(--color-accent-800); }
+.kt-verdict[data-v="partial"]            { border-top: 4px solid var(--color-neutral-500); }
+.kt-verdict[data-v="confidently_wrong"]  { border-top: 4px solid var(--color-accent-2); }
+.kt-verdict[data-v="confidently_wrong"] .v { color: var(--color-accent-2-800); }
+.kt-verdict[data-v="wrong"]              { border-top: 1px solid var(--color-neutral-400); }
+.kt-verdict[data-v="wrong"] .v { color: var(--color-neutral-600); }
+
+/* Rubric rows. The mark carries the status so the text never has to say it. */
+.kt-rubric { display: flex; flex-direction: column; gap: var(--space-3); }
+.kt-rubric li { display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start; list-style: none; }
+.kt-rubric .mark { width: 12px; height: 12px; margin-top: 5px; border-radius: 1px; }
+.kt-rubric li[data-s="hit"] .mark { background: var(--color-accent); }
+.kt-rubric li[data-s="partial"] .mark {
+  border: 1px solid var(--color-accent);
+  background: linear-gradient(to right, var(--color-accent) 50%, transparent 50%);
+}
+.kt-rubric li[data-s="miss"] .mark { border: 1px solid var(--color-accent-2); }
+.kt-rubric .desc { font-size: 16px; line-height: 1.45; text-wrap: pretty; }
+.kt-rubric .note {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.kt-rubric li[data-s="miss"] .note { color: var(--color-accent-2); }
+
+/* The three numbers under the rubric: what you scored, what you claimed, the gap. */
+.kt-stats { display: flex; align-items: baseline; gap: var(--space-4);
+            margin-top: var(--space-8); padding-top: var(--space-3);
+            border-top: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent); }
+.kt-stats div { display: flex; flex-direction: column; }
+.kt-stats .val { font-family: var(--font-heading); font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.kt-stats .cap { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: 3px;
+                 color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.kt-stats .gap { margin-left: auto; align-items: flex-end; }
+
+.kt-feedback {
+  margin-top: var(--space-6); font-size: 17px; line-height: 1.55; text-wrap: pretty;
+  border-left: 2px solid var(--color-accent); padding-left: var(--space-3);
+}
+
+/* Progress ticks: one per slot in today's cap. */
+.kt-ticks { display: flex; gap: 3px; align-items: flex-end; }
+.kt-ticks i { flex: 1; border-radius: 1px; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.kt-ticks i[data-done] { background: var(--color-accent); }
+
+.kt-answer {
+  width: 100%; box-sizing: border-box; min-height: 190px; resize: vertical;
+  padding: var(--space-3);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-neutral-100);
+  border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+  border-radius: var(--radius-md);
+  caret-color: var(--color-accent);
+}
+
+.kt-sticky {
+  margin-top: auto; padding: var(--space-6) var(--space-4) var(--space-4);
+  position: sticky; bottom: 0;
+  background: linear-gradient(to bottom, transparent, var(--color-bg) 18%);
+}
+
+@keyframes ktRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ktInk  { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .kt-screen[data-on] { animation: none; }
+}

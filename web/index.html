@@ -2,401 +2,144 @@
 <html lang="sv">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Studiesystem — Fas 0</title>
-<style>
-  :root { --bg:#12131a; --panel:#1a1c26; --line:#2b2e3d; --fg:#e6e8f0; --dim:#9aa0b5;
-          --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --acc:#818cf8; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,sans-serif; }
-  main { max-width:720px; margin:0 auto; padding:24px 16px 80px; }
-  h1 { font-size:20px; margin:0 0 4px; }
-  .sub { color:var(--dim); font-size:13px; margin:0 0 20px; }
-  nav { display:flex; gap:8px; margin-bottom:20px; }
-  nav button { flex:1; }
-  button { background:var(--acc); color:#12131a; border:0; border-radius:8px;
-           padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--dim); border:1px solid var(--line); font-weight:500; }
-  button.ghost[aria-current="true"] { color:var(--fg); border-color:var(--acc); }
-  button:disabled { opacity:.5; cursor:default; }
-  section { display:none; }
-  section.on { display:block; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
-  textarea { width:100%; background:#0e0f15; color:var(--fg); border:1px solid var(--line);
-             border-radius:8px; padding:12px; font:inherit; resize:vertical; }
-  label { display:block; font-size:13px; color:var(--dim); margin-bottom:6px; }
-  input[type=range] { width:100%; accent-color:var(--acc); }
-  .row { display:flex; align-items:center; gap:12px; }
-  .tag { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
-  .q { font-size:18px; margin:8px 0 16px; }
-  .verdict { font-weight:700; }
-  .correct,.correct_incomplete { color:var(--ok); }
-  .partial { color:var(--warn); }
-  .wrong,.confidently_wrong { color:var(--bad); }
-  ul { list-style:none; padding:0; margin:8px 0 0; }
-  li { padding:6px 0; border-top:1px solid var(--line); font-size:14px; }
-  .hit::before  { content:"✓ "; color:var(--ok); }
-  .part::before { content:"~ "; color:var(--warn); }
-  .miss::before { content:"✗ "; color:var(--bad); }
-  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:6px; }
-  .bar > i { display:block; height:100%; background:var(--acc); }
-  .msg { color:var(--dim); font-size:14px; }
-  .err { color:var(--bad); font-size:14px; }
-  #budget { display:flex; align-items:center; gap:8px; margin:-8px 0 16px; font-size:13px; }
-  #budget .bar { flex:1; margin-top:0; }
-  #budget.over-target .bar > i { background:var(--warn); }
-  #budget.exhausted { color:var(--bad); }
-  #budget.exhausted .bar > i { background:var(--bad); }
-  .item { border-top:1px solid var(--line); padding:12px 0; }
-  .item.cut { opacity:.35; }
-  .item.cut .q { text-decoration:line-through; }
-  .item .type { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
-  .item .ref { font-size:13px; color:var(--dim); margin:6px 0; }
-  .item ul { margin:6px 0 0; }
-  .item li { font-size:13px; border-top:none; padding:2px 0; }
-  .item .req { color:var(--acc); }
-  .cut-btn { background:none; border:1px solid var(--line); color:var(--dim);
-             font-size:12px; padding:2px 8px; border-radius:4px; cursor:pointer; }
-  .weight { font-size:11px; padding:1px 6px; border-radius:4px; border:1px solid var(--line); }
-  .weight.core { color:var(--acc); border-color:var(--acc); }
-  #sitting { display:flex; align-items:center; gap:8px; margin:-8px 0 16px; font-size:13px; }
-  #sitting .bar { flex:1; margin-top:0; }
-  #sitting .bar > i { background:var(--ok); }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f2f2">
+<title>KazaTeaches</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<main>
-  <h1>Studiesystem</h1>
-  <p class="sub">Fas 0 — skriv svaret själv, innan du ser facit.</p>
+<div class="kt-app">
 
-  <nav>
-    <button class="ghost" data-tab="study" aria-current="true">Plugga</button>
-    <button class="ghost" data-tab="import">Importera</button>
-    <button class="ghost" data-tab="progress">Progress</button>
-  </nav>
+  <!-- ── Idag ────────────────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-today" data-on>
+    <div style="padding: 0 var(--space-4) var(--space-8); display:flex; flex-direction:column; flex:1;">
+      <h1 style="font-size:40px; line-height:1.05; margin:var(--space-4) 0 var(--space-2);">Idag</h1>
+      <p id="today-line" style="margin:0 0 var(--space-6); font-size:17px; max-width:30ch;
+         color:color-mix(in srgb, var(--color-text) 72%, transparent);">Läser in…</p>
 
-  <div id="budget" class="msg" hidden></div>
-  <div id="sitting" class="msg" hidden></div>
-
-  <section id="study" class="on">
-    <div id="study-body" class="card msg">Laddar…</div>
-  </section>
-
-  <section id="import">
-    <div class="card">
-      <label for="material">Klistra in kursmaterial. Concepts, frågor och rubriker genereras en gång, här.</label>
-      <textarea id="material" rows="12" placeholder="Klistra in text…"></textarea>
-      <p class="row" style="margin-top:12px">
-        <button id="ingest">Generera frågor</button>
-        <span id="ingest-msg" class="msg"></span>
-      </p>
-    </div>
-    <div id="draft"></div>
-  </section>
-
-  <section id="progress">
-    <div id="progress-body" class="card msg">Laddar…</div>
-  </section>
-</main>
-
-<script>
-const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-
-let current = null;
-
-async function api(path, options) {
-  const res = await fetch(path, options);
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.detail ?? `${res.status} ${res.statusText}`);
-  return body;
-}
-
-document.querySelectorAll("nav button").forEach((b) => {
-  b.onclick = () => {
-    document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-current", x === b));
-    document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === b.dataset.tab));
-    if (b.dataset.tab === "study") loadNext();
-    if (b.dataset.tab === "progress") loadProgress();
-    loadBudget();
-  };
-});
-
-// --- study ---------------------------------------------------------------
-async function loadNext() {
-  const el = $("#study-body");
-  el.className = "card msg";
-  el.textContent = "Hämtar…";
-  loadSitting();
-  try {
-    current = await api("/api/next");
-    if (!current) {
-      // Two different endings, and the difference matters: one means come back
-      // tomorrow, the other means there is nothing to come back to.
-      const s = await api("/api/session").catch(() => null);
-      el.className = "card msg";
-      el.textContent = !s || !s.due_total
-        ? "Inget är förfallet just nu. Kom tillbaka när något blir due — eller importera mer material."
-        : `Dagens pass är klart (${s.reviews_done} frågor). ${s.due_total} förfallna väntar till i morgon.`;
-      return;
-    }
-    renderQuestion();
-  } catch (e) {
-    el.className = "card err";
-    el.textContent = e.message;
-  }
-}
-
-function renderQuestion() {
-  const el = $("#study-body");
-  el.className = "card";
-  // autocomplete/spellcheck off on purpose: retrieval, not recognition (§0.5).
-  el.innerHTML = `
-    <div class="tag">${esc(current.concept_name)} · ${esc(current.type)}</div>
-    <div class="q">${esc(current.prompt)}</div>
-    <label for="answer">Ditt svar</label>
-    <textarea id="answer" rows="6" autocomplete="off" autocorrect="off"
-              autocapitalize="off" spellcheck="false"></textarea>
-    <div style="margin-top:14px">
-      <label for="conf">Hur säker är du? <b id="conf-val">50%</b></label>
-      <input type="range" id="conf" min="0" max="100" value="50">
-    </div>
-    <p class="row" style="margin-top:12px">
-      <button id="submit">Rätta</button>
-      <span id="grade-msg" class="msg"></span>
-    </p>`;
-  $("#conf").oninput = (e) => { $("#conf-val").textContent = e.target.value + "%"; };
-  $("#submit").onclick = submitAnswer;
-  $("#answer").focus();
-}
-
-async function submitAnswer() {
-  const answer = $("#answer").value.trim();
-  if (!answer) { $("#grade-msg").textContent = "Skriv något först."; return; }
-  $("#submit").disabled = true;
-  $("#grade-msg").className = "msg";
-  $("#grade-msg").textContent = "Rättar…";
-  try {
-    const res = await api("/api/review", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        item_id: current.item_id,
-        answer,
-        confidence: Number($("#conf").value) / 100,
-      }),
-    });
-    renderGrading(res, answer);
-    loadBudget();   // a review just spent money; show the new number
-    loadSitting();  // ...and used one of the day's slots
-  } catch (e) {
-    $("#submit").disabled = false;
-    $("#grade-msg").className = "err";
-    $("#grade-msg").textContent = e.message;
-  }
-}
-
-function renderGrading(res, answer) {
-  const g = res.grading;
-  const gap = g.confidence_gap;
-  const gapNote = gap >= 0.4
-    ? `<p class="err">Du var ${Math.round(gap * 100)} procentenheter säkrare än vad svaret bar. Det är luckan.</p>`
-    : "";
-  $("#study-body").innerHTML = `
-    <div class="tag">${esc(current.concept_name)}</div>
-    <div class="q">${esc(current.prompt)}</div>
-    <p><span class="verdict ${g.verdict}">${esc(g.verdict)}</span> · ${Math.round(g.score * 100)}%</p>
-    <div class="bar"><i style="width:${Math.round(g.score * 100)}%"></i></div>
-    <ul>${g.rubric_hits.map((h) =>
-      `<li class="${ {hit:"hit", partial:"part", miss:"miss"}[h.status] }">${esc(h.id)} — ${esc(h.note)}</li>`).join("")}</ul>
-    <p>${esc(g.feedback)}</p>
-    ${gapNote}
-    <div class="card" style="background:#0e0f15">
-      <div class="tag">Ditt svar</div><p>${esc(answer)}</p>
-      <div class="tag">Referenssvar</div><p>${esc(res.reference_answer)}</p>
-    </div>
-    <div class="card" style="background:#0e0f15">
-      <div class="tag">Följdfråga</div><p>${esc(g.followup_question)}</p>
-    </div>
-    <p class="row">
-      <button id="next">Nästa</button>
-      <span class="msg">Åter om ${res.interval_days < 1
-        ? Math.round(res.interval_days * 24 * 60) + " min"
-        : res.interval_days.toFixed(1) + " dagar"}</span>
-    </p>`;
-  $("#next").onclick = loadNext;
-}
-
-// --- import --------------------------------------------------------------
-// Two steps on purpose. A generated item is not a generated answer: once saved
-// it is scheduled, repeated and graded against for weeks, and by then a bad
-// question is indistinguishable from a bad memory. Nothing is stored until the
-// Spara button below.
-let draft = null;
-const cutItems = new Set();
-const cutConcepts = new Set();
-
-$("#ingest").onclick = async () => {
-  const text = $("#material").value.trim();
-  $("#ingest").disabled = true;
-  $("#ingest-msg").className = "msg";
-  $("#ingest-msg").textContent = "Genererar — det här tar en stund och görs bara en gång…";
-  $("#draft").innerHTML = "";
-  try {
-    draft = await api("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    cutItems.clear(); cutConcepts.clear();
-    $("#ingest-msg").textContent =
-      `${draft.concepts.length} concepts, ${draft.n_items} frågor, $${draft.cost_usd.toFixed(3)}. Granska innan du sparar.`;
-    renderDraft();
-    loadBudget();
-  } catch (e) {
-    $("#ingest-msg").className = "err";
-    $("#ingest-msg").textContent = e.message;
-  } finally {
-    $("#ingest").disabled = false;
-  }
-};
-
-function renderDraft() {
-  if (!draft) { $("#draft").innerHTML = ""; return; }
-  const kept = draft.concepts
-    .filter((c) => !cutConcepts.has(c.name))
-    .reduce((n, c) => n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
-
-  $("#draft").innerHTML = draft.concepts.map((c) => `
-    <div class="card${cutConcepts.has(c.name) ? " cut" : ""}">
-      <div class="row" style="justify-content:space-between">
-        <span><span class="weight ${esc(c.importance)}">${esc(c.importance)}</span>
-          <strong>${esc(c.name)}</strong></span>
-        <button class="cut-btn" data-concept="${esc(c.name)}">
-          ${cutConcepts.has(c.name) ? "Ångra" : "Stryk concept"}</button>
+      <div style="display:flex; align-items:flex-end; gap:var(--space-6); margin-bottom:var(--space-3);">
+        <div style="display:flex; flex-direction:column;">
+          <span class="kt-num" id="due-count" style="font-family:var(--font-heading); font-size:64px; line-height:.9; letter-spacing:-.03em;">–</span>
+          <span class="kt-eyebrow" style="margin-top:var(--space-2);">förfallna frågor</span>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <span class="kt-num" id="concept-count" style="font-family:var(--font-heading); font-size:64px; line-height:.9; letter-spacing:-.03em; color:var(--color-accent-700);">–</span>
+          <span class="kt-eyebrow" style="margin-top:var(--space-2);">begrepp</span>
+        </div>
       </div>
-      <p class="msg">${esc(c.short_explanation)}</p>
-      ${c.items.map((i) => {
-        const key = `${c.name}::${i.prompt}`;
-        return `<div class="item${cutItems.has(key) ? " cut" : ""}">
-          <div class="row" style="justify-content:space-between">
-            <span class="type">${esc(i.type)}</span>
-            <button class="cut-btn" data-item="${esc(key)}">
-              ${cutItems.has(key) ? "Ångra" : "Stryk"}</button>
-          </div>
-          <div class="q">${esc(i.prompt)}</div>
-          <div class="ref">${esc(i.reference_answer)}</div>
-          <ul>${i.rubric.map((r) =>
-            `<li><span class="${r.required ? "req" : "msg"}">${r.required ? "krävs" : "extra"}</span>
-             ${esc(r.id)} — ${esc(r.desc)}</li>`).join("")}</ul>
-        </div>`;
-      }).join("")}
-    </div>`).join("") + `
-    <div class="card row" style="justify-content:space-between">
-      <span class="msg">${kept} av ${draft.n_items} frågor sparas</span>
-      <button id="save-draft"${kept ? "" : " disabled"}>Spara ${kept} frågor</button>
-    </div>`;
 
-  $("#draft").querySelectorAll("[data-concept]").forEach((b) => {
-    b.onclick = () => {
-      const n = b.dataset.concept;
-      cutConcepts.has(n) ? cutConcepts.delete(n) : cutConcepts.add(n);
-      renderDraft();
-    };
-  });
-  $("#draft").querySelectorAll("[data-item]").forEach((b) => {
-    b.onclick = () => {
-      const k = b.dataset.item;
-      cutItems.has(k) ? cutItems.delete(k) : cutItems.add(k);
-      renderDraft();
-    };
-  });
-  const save = $("#save-draft");
-  if (save) save.onclick = saveDraft;
-}
+      <div class="kt-ticks" id="today-ticks" style="height:22px; margin-bottom:var(--space-1);"></div>
+      <div class="kt-eyebrow" id="pass-line" style="margin-bottom:var(--space-8);"></div>
 
-async function saveDraft() {
-  $("#save-draft").disabled = true;
-  try {
-    const res = await api("/api/ingest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        draft_id: draft.draft_id,
-        reject_concepts: [...cutConcepts],
-        reject_items: [...cutItems],
-      }),
-    });
-    $("#ingest-msg").className = "msg";
-    $("#ingest-msg").textContent = `Sparat: ${res.concepts} concepts, ${res.items} frågor.`;
-    $("#material").value = "";
-    draft = null;
-    renderDraft();
-  } catch (e) {
-    $("#ingest-msg").className = "err";
-    $("#ingest-msg").textContent = e.message;
-    $("#save-draft").disabled = false;
-  }
-}
+      <h2 class="kt-h2" style="margin-top:0;">Svagast just nu</h2>
+      <div id="weak" style="display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8);"></div>
 
-// --- sitting -------------------------------------------------------------
-// One sitting a day, capped. What does not fit stays due and leads tomorrow.
-async function loadSitting() {
-  const el = $("#sitting");
-  try {
-    const s = await api("/api/session");
-    if (!s.due_total && !s.reviews_done) { el.hidden = true; return; }
-    el.hidden = false;
-    const cap = s.reviews_done + s.reviews_left;
-    const pct = cap ? Math.round((s.reviews_done / cap) * 100) : 100;
-    el.innerHTML = `<span>${s.reviews_done}/${cap} i dagens pass</span>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <span>${s.due_total} förfallna · ${s.concepts_covered} concepts</span>`;
-  } catch {
-    el.hidden = true;
-  }
-}
+      <button class="kt-btn" id="start">Starta passet</button>
+      <div id="cap-line" style="font-size:12px; text-align:center; margin-top:var(--space-2);
+           color:color-mix(in srgb, var(--color-text) 50%, transparent);"></div>
 
-// --- budget --------------------------------------------------------------
-// Refreshed after every call that can spend, so the number on screen is the
-// number the cap will be checked against on the next review.
-async function loadBudget() {
-  const el = $("#budget");
-  try {
-    const b = await api("/api/budget");
-    el.hidden = false;
-    el.className = "msg" + (b.exhausted ? " exhausted" : b.over_target ? " over-target" : "");
-    const pct = Math.min(100, Math.round(b.fraction_of_cap * 100));
-    el.innerHTML = `<span>$${b.spent_usd.toFixed(2)} / $${b.cap_usd.toFixed(2)} i ${esc(b.month)}</span>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <span>${b.exhausted ? "taket nått" : "$" + b.remaining_usd.toFixed(2) + " kvar"}</span>`;
-  } catch {
-    el.hidden = true;  // the budget strip must never be why the page fails
-  }
-}
+      <div id="budget" style="margin-top:auto; padding-top:var(--space-8); display:flex; flex-direction:column; gap:var(--space-1);" hidden>
+        <div style="height:2px; background:color-mix(in srgb, var(--color-text) 10%, transparent);">
+          <div id="budget-bar" style="height:2px; width:0; background:var(--color-accent);"></div>
+        </div>
+        <div class="kt-num" id="budget-line" style="font-size:11px; letter-spacing:.04em;
+             color:color-mix(in srgb, var(--color-text) 50%, transparent);"></div>
+      </div>
+    </div>
+  </section>
 
-// --- progress ------------------------------------------------------------
-async function loadProgress() {
-  const el = $("#progress-body");
-  try {
-    const p = await api("/api/progress");
-    if (!p.concepts.length) { el.className = "card msg"; el.textContent = "Inget importerat än."; return; }
-    el.className = "card";
-    el.innerHTML = `<p class="msg">${p.due_now} due nu</p><ul>${p.concepts.map((c) => {
-      const m = c.mastery === null ? "–" : Math.round(c.mastery * 100) + "%";
-      const gap = c.mean_confidence_gap === null ? ""
-        : ` · gap ${(c.mean_confidence_gap >= 0 ? "+" : "") + Math.round(c.mean_confidence_gap * 100)}`;
-      return `<li>${esc(c.name)} <span class="msg">· ${esc(c.importance)} · ${c.reviewed_items}/${c.items} frågor · mastery ${m}${gap}</span>
-        <div class="bar"><i style="width:${c.mastery === null ? 0 : Math.round(c.mastery * 100)}%"></i></div></li>`;
-    }).join("")}</ul>`;
-  } catch (e) {
-    el.className = "card err"; el.textContent = e.message;
-  }
-}
+  <!-- ── Session ─────────────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-session">
+    <div style="padding:0 var(--space-4);">
+      <div class="kt-ticks" id="session-ticks" style="height:10px; gap:2px;"></div>
+      <div style="display:flex; align-items:baseline; gap:var(--space-3); margin-top:var(--space-2);" class="kt-eyebrow">
+        <span id="q-concept" style="color:var(--color-accent-700);"></span>
+        <span class="kt-num" id="attempt-line" style="margin-left:auto;"></span>
+        <button class="kt-link" id="pause" style="font-size:11px; letter-spacing:.09em; text-transform:uppercase;">Pausa</button>
+      </div>
+    </div>
 
-loadNext();
-loadBudget();
-loadSitting();
-</script>
+    <div style="padding:var(--space-6) var(--space-4) 0;">
+      <h1 id="q-prompt" style="font-size:27px; line-height:1.22; letter-spacing:-.01em; margin:0 0 var(--space-4); text-wrap:pretty;"></h1>
+      <div id="q-code"></div>
+      <textarea id="answer" class="kt-answer" spellcheck="false" autocomplete="off"
+                autocorrect="off" autocapitalize="off"
+                placeholder="Skriv ditt svar. Ingen ledtråd förrän du lämnat in."></textarea>
+      <div class="kt-eyebrow" id="word-line" style="margin-top:var(--space-1); letter-spacing:.06em;"></div>
+    </div>
+
+    <div class="kt-sticky">
+      <div style="display:flex; align-items:baseline; gap:var(--space-2); margin-bottom:var(--space-2);">
+        <span style="font-family:var(--font-heading); font-size:19px;">Hur säker är du?</span>
+        <span class="kt-eyebrow" id="conf-hint" style="margin-left:auto; letter-spacing:.08em;"></span>
+      </div>
+      <div class="kt-conf" id="conf" style="margin-bottom:var(--space-3);"></div>
+      <button class="kt-btn" id="submit" disabled>Välj hur säker du är</button>
+    </div>
+  </section>
+
+  <!-- ── Bedömning ───────────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-graded">
+    <div style="display:flex; flex-direction:column; flex:1; padding:0 var(--space-4) var(--space-8);">
+      <div class="kt-verdict" id="verdict" style="animation:ktInk 320ms ease-out;">
+        <div class="v"></div><div class="sub"></div>
+      </div>
+
+      <h2 class="kt-h2">Vad du hade</h2>
+      <ul class="kt-rubric" id="r-hits" style="padding:0; margin:0;"></ul>
+      <div id="no-hits" style="font-size:16px; font-style:italic;
+           color:color-mix(in srgb, var(--color-text) 55%, transparent);" hidden>Ingenting den här gången.</div>
+
+      <h2 class="kt-h2" id="h-partials" style="margin-top:var(--space-6);" hidden>Bara halvvägs</h2>
+      <ul class="kt-rubric" id="r-partials" style="padding:0; margin:0;"></ul>
+
+      <h2 class="kt-h2" id="h-misses" style="margin-top:var(--space-6); color:var(--color-accent-2);" hidden>Vad du missade</h2>
+      <ul class="kt-rubric" id="r-misses" style="padding:0; margin:0;"></ul>
+
+      <div class="kt-stats">
+        <div><span class="val" id="st-score"></span><span class="cap">score</span></div>
+        <div><span class="val" id="st-conf"></span><span class="cap">du sa</span></div>
+        <div class="gap"><span class="val" id="st-gap"></span><span class="cap">gap</span></div>
+      </div>
+
+      <div class="kt-feedback" id="g-feedback"></div>
+
+      <div style="margin-top:var(--space-8);">
+        <div class="kt-eyebrow" style="margin-bottom:var(--space-2);">Följdfråga</div>
+        <div id="g-followup" style="font-family:var(--font-heading); font-size:22px; line-height:1.25;
+             text-wrap:pretty; margin-bottom:var(--space-4);"></div>
+        <button class="kt-btn" id="next">Nästa fråga</button>
+        <div style="display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-3);">
+          <button class="kt-btn kt-btn-ghost" id="to-today">Avsluta passet</button>
+          <button class="kt-link" id="show-facit">Visa facit</button>
+        </div>
+      </div>
+
+      <div id="facit" style="margin-top:var(--space-4); padding:var(--space-3);
+           background:var(--color-neutral-200); border-radius:var(--radius-md);
+           font-size:16px; line-height:1.55;" hidden></div>
+
+      <div id="sched-line" class="kt-eyebrow" style="margin-top:var(--space-4);"></div>
+
+      <details style="margin-top:var(--space-6);">
+        <summary class="kt-eyebrow" style="cursor:pointer;">Ditt svar</summary>
+        <div id="your-answer" style="margin-top:var(--space-2); font-size:15px; line-height:1.55;
+             white-space:pre-wrap; color:color-mix(in srgb, var(--color-text) 70%, transparent);"></div>
+      </details>
+    </div>
+  </section>
+
+  <div id="err" style="display:none; margin:var(--space-4); padding:var(--space-3);
+       border-left:2px solid var(--color-accent-2); font-size:14px;"></div>
+</div>
+<script src="/app.js" type="module"></script>
 </body>
 </html>

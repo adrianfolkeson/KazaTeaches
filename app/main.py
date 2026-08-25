@@ -11,8 +11,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.ai.client import AIError, set_meter
+from app.auth import access_key, gate
 from app.ai.generation import generate_draft
 from app.ai.grading import grade
 from app.budget import BudgetExceeded, current_month
@@ -49,6 +51,10 @@ async def lifespan(_app: FastAPI):
     # run — /api/health says so rather than implying a guarantee it cannot make.
     set_meter(store.month_spend, store.record_spend)
 
+    # Idempotent, and it runs before the first request so a fresh database is
+    # usable on the first boot rather than on the first crash.
+    store.ensure_schema()
+
     if store.backend == "memory":
         print(
             "WARNING: DATABASE_URL is not set. Running on the in-memory store —\n"
@@ -56,6 +62,13 @@ async def lifespan(_app: FastAPI):
             "         and the monthly spend ledger resets with it.",
             file=sys.stderr,
         )
+    if access_key() is None:
+        print(
+            "WARNING: KT_ACCESS_KEY is not set. Every endpoint is open, including\n"
+            "         the ones that spend money. Fine locally; never in production.",
+            file=sys.stderr,
+        )
+
     spent = store.month_spend()
     print(
         f"Budget {current_month()}: ${spent:.2f} spent of "
@@ -66,6 +79,9 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Studiesystem — Fas 0", lifespan=lifespan)
+
+# Registered before the static mount so it covers the shell as well as the API.
+app.middleware("http")(gate)
 
 
 @app.get("/api/health")
@@ -215,8 +231,10 @@ def _sitting_remaining(sitting: dict) -> int:
     return max(0, settings.session_max_items - sitting["reviews"])
 
 
-def _due_item(row: dict) -> DueItem:
+def _due_item(row: dict, sitting: dict | None = None) -> DueItem:
     return DueItem(
+        attempt=(sitting["attempts"].get(row["item_id"], 0) if sitting else 0),
+        attempts_allowed=settings.session_max_per_item,
         item_id=row["item_id"],
         concept_id=row["concept_id"],
         concept_name=row["concept_name"],
@@ -250,7 +268,7 @@ def next_item() -> DueItem | None:
     if _sitting_remaining(sitting) <= 0:
         return None
     queue = _session(store.ensure_course(settings.course_name), sitting)
-    return _due_item(queue[0]) if queue else None
+    return _due_item(queue[0], sitting) if queue else None
 
 
 @app.get("/api/session", response_model=SessionQueue)
@@ -264,7 +282,7 @@ def session() -> SessionQueue:
     return SessionQueue(
         course_id=course_id,
         due_total=len(due),
-        items=[_due_item(r) for r in queue],
+        items=[_due_item(r, sitting) for r in queue],
         concepts_covered=len({r["concept_id"] for r in queue}),
         capped=len(queue) < len(due),
         reviews_done=sitting["reviews"],
@@ -322,6 +340,7 @@ def submit_review(req: ReviewRequest) -> ReviewResponse:
         reference_answer=item["reference_answer"],
         next_due_at=due_at.isoformat(),
         interval_days=round(interval, 3),
+        rubric=[RubricCriterion(**c) for c in item["rubric"]],
     )
 
 
@@ -338,3 +357,9 @@ def progress() -> ProgressResponse:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB / "index.html")
+
+
+# The frontend is static files, mounted last so every /api/ route wins the match.
+# A service worker only registers for the scope it is served from, so sw.js has
+# to sit at the root — which mounting web/ at "/" gives for free.
+app.mount("/", StaticFiles(directory=WEB), name="web")

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f2f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="_ds/broadsheet-b4b68364-ec88-410f-84a4-1984ed4af94c/styles.css">
+<script src="_ds/broadsheet-b4b68364-ec88-410f-84a4-1984ed4af94c/_ds_bundle.js"></script>
+<style>
+  @keyframes ktRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes ktInk { from { opacity: 0; letter-spacing: 0.12em; } to { opacity: 1; letter-spacing: -0.02em; } }
+  body { margin: 0; background: var(--color-neutral-200); }
+  textarea:focus-visible, button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  a { color: var(--color-accent); }
+  a:hover { color: var(--color-accent-700); }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; justify-content: center; background: var(--color-neutral-200); font-family: var(--font-body); color: var(--color-text);">
+<div style="width: 100%; max-width: 460px; min-height: 100vh; background: var(--color-bg); display: flex; flex-direction: column; position: relative; box-shadow: var(--shadow-lg);">
+
+  <div style="display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-2); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent);">
+    <span style="font-family: var(--font-heading); color: var(--color-text); letter-spacing: 0.02em; text-transform: none; font-size: 15px;">Kaza</span>
+    <span style="margin-left: auto;">{{ dateline }}</span>
+  </div>
+
+  <sc-if value="{{ showNav }}" hint-placeholder-val="{{ true }}">
+    <nav style="display: flex; gap: var(--space-4); padding: 0 var(--space-4) var(--space-3);">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="4">
+        <button type="button" onClick="{{ n.go }}" style="cursor: pointer; background: transparent; border: 0; padding: var(--space-1) 0 6px; font-family: var(--font-heading); font-weight: 600; font-size: 17px; letter-spacing: -0.01em; color: {{ n.ink }}; border-bottom: 2px solid {{ n.rule }};">{{ n.label }}</button>
+      </sc-for>
+    </nav>
+  </sc-if>
+
+  <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; flex: 1; padding: 0 var(--space-4) var(--space-8); animation: ktRise 260ms ease-out;">
+
+      <h1 style="font-size: 40px; line-height: 1.05; margin: var(--space-4) 0 var(--space-2);">Idag</h1>
+      <p style="margin: 0 0 var(--space-6); font-size: 17px; max-width: 30ch; color: color-mix(in srgb, var(--color-text) 72%, transparent);">{{ todayLine }}</p>
+
+      <div style="display: flex; align-items: flex-end; gap: var(--space-6); margin-bottom: var(--space-3);">
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-family: var(--font-heading); font-size: 64px; line-height: 0.9; letter-spacing: -0.03em;">{{ dueCount }}</span>
+          <span style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: var(--space-2); color: color-mix(in srgb, var(--color-text) 55%, transparent);">förfallna frågor</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-family: var(--font-heading); font-size: 64px; line-height: 0.9; letter-spacing: -0.03em; color: var(--color-accent-700);">{{ conceptCount }}</span>
+          <span style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: var(--space-2); color: color-mix(in srgb, var(--color-text) 55%, transparent);">begrepp</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 3px; align-items: flex-end; height: 22px; margin-bottom: var(--space-1);">
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="20">
+          <div style="flex: 1; border-radius: 1px; height: {{ t.h }}; background: {{ t.bg }};"></div>
+        </sc-for>
+      </div>
+      <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent); margin-bottom: var(--space-8);">{{ passLine }}</div>
+
+      <h2 style="font-size: 13px; letter-spacing: 0.09em; text-transform: uppercase; margin: 0 0 var(--space-3); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Svagast just nu</h2>
+      <div style="display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-8);">
+        <sc-for list="{{ weak }}" as="w" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+            <div style="display: flex; align-items: baseline; gap: var(--space-2);">
+              <span style="font-family: var(--font-heading); font-size: 19px; line-height: 1.15;">{{ w.name }}</span>
+              <span style="margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-text) 55%, transparent);">{{ w.pct }}</span>
+            </div>
+            <div style="height: 3px; background: color-mix(in srgb, var(--color-text) 10%, transparent);">
+              <div style="height: 3px; width: {{ w.pct }}; background: {{ w.ink }};"></div>
+            </div>
+            <div style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 55%, transparent);">{{ w.note }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <button type="button" onClick="{{ startSession }}" style="width: 100%; min-height: 56px; border: 0; border-radius: var(--radius-md); background: var(--color-accent); color: var(--color-neutral-100); font-family: var(--font-heading); font-weight: 600; font-size: 18px; cursor: pointer;" style-hover="background: var(--color-accent-600);" style-active="background: var(--color-accent-700);">{{ startLabel }}</button>
+      <div style="font-size: 12px; text-align: center; margin-top: var(--space-2); color: color-mix(in srgb, var(--color-text) 50%, transparent);">{{ capLine }}</div>
+
+      <sc-if value="{{ showBudget }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top: auto; padding-top: var(--space-8); display: flex; flex-direction: column; gap: var(--space-1);">
+          <div style="height: 2px; background: color-mix(in srgb, var(--color-text) 10%, transparent);">
+            <div style="height: 2px; width: {{ budgetPct }}; background: {{ budgetInk }};"></div>
+          </div>
+          <div style="font-size: 11px; letter-spacing: 0.04em; color: color-mix(in srgb, var(--color-text) 50%, transparent); font-variant-numeric: tabular-nums;">{{ budgetLine }}</div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSession }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; flex: 1;">
+
+      <div style="padding: 0 var(--space-4);">
+        <div style="display: flex; gap: 2px; align-items: flex-end; height: 10px;">
+          <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="20">
+            <div style="flex: 1; height: {{ t.h }}; background: {{ t.bg }};"></div>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-top: var(--space-2); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent);">
+          <span style="color: var(--color-accent-700);">{{ concept }}</span>
+          <span style="margin-left: auto;">{{ attemptLine }}</span>
+
+          <button type="button" onClick="{{ exitPass }}" style="cursor: pointer; background: transparent; border: 0; padding: 0; font-family: var(--font-body); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 45%, transparent); text-decoration: underline; text-underline-offset: 3px;" style-hover="color: var(--color-text);">Pausa</button>
+        </div>
+      </div>
+
+      <div style="padding: var(--space-6) var(--space-4) 0;">
+        <h1 style="font-size: 27px; line-height: 1.22; letter-spacing: -0.01em; margin: 0 0 var(--space-4); text-wrap: pretty;">{{ question }}</h1>
+
+        <sc-if value="{{ hasCode }}" hint-placeholder-val="{{ false }}">
+          <pre style="margin: 0 0 var(--space-4); padding: var(--space-3); background: var(--color-neutral-200); border-radius: var(--radius-md); overflow-x: auto; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; line-height: 1.6; color: var(--color-neutral-900);">{{ code }}</pre>
+        </sc-if>
+
+        <textarea value="{{ answer }}" onChange="{{ onAnswer }}" placeholder="Skriv ditt svar. Ingen ledtråd förrän du lämnat in." spellcheck="false" autoComplete="off" style="width: 100%; box-sizing: border-box; min-height: 190px; resize: vertical; padding: var(--space-3); font-family: var(--font-body); font-size: 17px; line-height: 1.55; color: var(--color-text); background: var(--color-neutral-100); border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent); border-radius: var(--radius-md); caret-color: var(--color-accent);"></textarea>
+        <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ wordLine }}</div>
+      </div>
+
+      <div style="margin-top: auto; padding: var(--space-6) var(--space-4) var(--space-4); position: sticky; bottom: 0; background: linear-gradient(to bottom, transparent, var(--color-bg) 18%);">
+        <div style="display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-2);">
+          <span style="font-family: var(--font-heading); font-size: 19px;">Hur säker är du?</span>
+          <span style="margin-left: auto; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {{ confHintInk }};">{{ confHint }}</span>
+        </div>
+        <div style="display: flex; gap: 4px; margin-bottom: var(--space-3);">
+          <sc-for list="{{ confOptions }}" as="c" hint-placeholder-count="5">
+            <button type="button" onClick="{{ c.pick }}" style="flex: 1; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; padding: 0 2px; border-radius: var(--radius-md); font-family: var(--font-body); background: {{ c.bg }}; color: {{ c.ink }}; border: 1px solid {{ c.border }};">
+              <span style="font-family: var(--font-heading); font-size: 15px; font-variant-numeric: tabular-nums;">{{ c.num }}</span>
+              <span style="font-size: 10px; line-height: 1.1; letter-spacing: 0.02em; text-align: center;">{{ c.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{ submit }}" disabled="{{ submitDisabled }}" style="width: 100%; min-height: 56px; border: 0; border-radius: var(--radius-md); font-family: var(--font-heading); font-weight: 600; font-size: 18px; cursor: pointer; background: {{ submitBg }}; color: {{ submitInk }}; opacity: {{ submitOpacity }};">{{ submitLabel }}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isGraded }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; flex: 1; padding: 0 var(--space-4) var(--space-8);">
+
+      <div style="padding-top: var(--space-3); animation: ktInk 320ms ease-out;">
+        <sc-if value="{{ vCorrect }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 4px solid var(--color-text); padding-top: var(--space-2);">
+            <div style="font-family: var(--font-heading); font-size: 34px; line-height: 1; letter-spacing: -0.02em;">Rätt</div>
+            <div style="font-size: 13px; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Alla obligatoriska kriterier träffade.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ vIncomplete }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 4px solid var(--color-accent); padding-top: var(--space-2);">
+            <div style="font-family: var(--font-heading); font-size: 34px; line-height: 1; letter-spacing: -0.02em; color: var(--color-accent-800);">Rätt, men ofullständigt</div>
+            <div style="font-size: 13px; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Kärnan sitter. Kanterna saknas.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ vPartial }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 4px solid var(--color-neutral-500); padding-top: var(--space-2);">
+            <div style="font-family: var(--font-heading); font-size: 34px; line-height: 1; letter-spacing: -0.02em;">Delvis</div>
+            <div style="font-size: 13px; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Rätt riktning, för lite innehåll.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ vConfWrong }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 4px solid var(--color-accent-2); padding-top: var(--space-2);">
+            <div style="font-family: var(--font-heading); font-size: 34px; line-height: 1; letter-spacing: -0.02em; color: var(--color-accent-2-800);">Säker och fel</div>
+            <div style="font-size: 13px; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Du kände dig säker på något som inte höll — den dyraste sortens lucka.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ vWrong }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top: 1px solid var(--color-neutral-400); padding-top: var(--space-2);">
+            <div style="font-family: var(--font-heading); font-size: 34px; line-height: 1; letter-spacing: -0.02em; color: var(--color-neutral-600);">Fel</div>
+            <div style="font-size: 13px; margin-top: var(--space-1); color: color-mix(in srgb, var(--color-text) 55%, transparent);">Inget av kriterierna landade. Inget drama — den kommer tillbaka.</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <h2 style="font-size: 13px; letter-spacing: 0.09em; text-transform: uppercase; margin: var(--space-8) 0 var(--space-3); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Vad du hade</h2>
+      <sc-if value="{{ hasHits }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <sc-for list="{{ hits }}" as="r" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start;">
+              <div style="width: 12px; height: 12px; margin-top: 5px; background: var(--color-accent); border-radius: 1px;"></div>
+              <div>
+                <div style="font-size: 16px; line-height: 1.45; text-wrap: pretty;">{{ r.desc }}</div>
+                <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ r.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ noHits }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size: 16px; font-style: italic; color: color-mix(in srgb, var(--color-text) 55%, transparent);">Ingenting den här gången.</div>
+      </sc-if>
+
+      <sc-if value="{{ hasPartials }}" hint-placeholder-val="{{ true }}">
+        <h2 style="font-size: 13px; letter-spacing: 0.09em; text-transform: uppercase; margin: var(--space-6) 0 var(--space-3); color: color-mix(in srgb, var(--color-text) 60%, transparent);">Bara halvvägs</h2>
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <sc-for list="{{ partials }}" as="r" hint-placeholder-count="1">
+            <div style="display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start;">
+              <div style="width: 12px; height: 12px; margin-top: 5px; border-radius: 1px; border: 1px solid var(--color-accent); background: linear-gradient(to right, var(--color-accent) 50%, transparent 50%);"></div>
+              <div>
+                <div style="font-size: 16px; line-height: 1.45; text-wrap: pretty;">{{ r.desc }}</div>
+                <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ r.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasMisses }}" hint-placeholder-val="{{ true }}">
+        <h2 style="font-size: 13px; letter-spacing: 0.09em; text-transform: uppercase; margin: var(--space-6) 0 var(--space-3); color: var(--color-accent-2);">Vad du missade</h2>
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <sc-for list="{{ misses }}" as="r" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start;">
+              <div style="width: 12px; height: 12px; margin-top: 5px; border-radius: 1px; border: 1px solid var(--color-accent-2);"></div>
+              <div>
+                <div style="font-size: 16px; line-height: 1.45; text-wrap: pretty;">{{ r.desc }}</div>
+                <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; color: var(--color-accent-2);">{{ r.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; align-items: baseline; gap: var(--space-4); margin: var(--space-8) 0 0; padding-top: var(--space-3); border-top: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);">
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-family: var(--font-heading); font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1;">{{ scoreText }}</span>
+          <span style="font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: 3px; color: color-mix(in srgb, var(--color-text) 50%, transparent);">score</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-family: var(--font-heading); font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1;">{{ confText }}</span>
+          <span style="font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: 3px; color: color-mix(in srgb, var(--color-text) 50%, transparent);">du sa</span>
+        </div>
+        <div style="display: flex; flex-direction: column; margin-left: auto; align-items: flex-end;">
+          <span style="font-family: var(--font-heading); font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1; color: {{ gapInk }};">{{ gapText }}</span>
+          <span style="font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; margin-top: 3px; color: color-mix(in srgb, var(--color-text) 50%, transparent);">gap</span>
+        </div>
+      </div>
+
+      <div style="margin-top: var(--space-6); font-size: 17px; line-height: 1.55; text-wrap: pretty; border-left: 2px solid var(--color-accent); padding-left: var(--space-3);">{{ feedback }}</div>
+
+      <div style="margin-top: var(--space-8);">
+        <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent); margin-bottom: var(--space-2);">Följdfråga</div>
+        <div style="font-family: var(--font-heading); font-size: 22px; line-height: 1.25; text-wrap: pretty; margin-bottom: var(--space-4);">{{ followup }}</div>
+        <button type="button" onClick="{{ retry }}" style="width: 100%; min-height: 56px; border: 0; border-radius: var(--radius-md); background: var(--color-accent); color: var(--color-neutral-100); font-family: var(--font-heading); font-weight: 600; font-size: 18px; cursor: pointer;" style-hover="background: var(--color-accent-600);" style-active="background: var(--color-accent-700);">Svara på den</button>
+        <div style="display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-3);">
+          <button type="button" onClick="{{ next }}" style="flex: 1; min-height: 48px; cursor: pointer; background: transparent; border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent); border-radius: var(--radius-md); font-family: var(--font-heading); font-size: 15px; color: var(--color-text);" style-hover="background: color-mix(in srgb, var(--color-text) 7%, transparent);">Nästa fråga</button>
+          <sc-if value="{{ allowFacit }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ showFacit }}" style="cursor: pointer; background: transparent; border: 0; padding: var(--space-2); font-family: var(--font-body); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; color: color-mix(in srgb, var(--color-text) 45%, transparent);" style-hover="color: var(--color-text);">Visa facit</button>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ facitOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top: var(--space-4); padding: var(--space-3); background: var(--color-neutral-200); border-radius: var(--radius-md); font-size: 16px; line-height: 1.55;">{{ facit }}</div>
+      </sc-if>
+
+      <details style="margin-top: var(--space-6);">
+        <summary style="cursor: pointer; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 45%, transparent);">Ditt svar</summary>
+        <div style="margin-top: var(--space-2); font-size: 15px; line-height: 1.55; white-space: pre-wrap; color: color-mix(in srgb, var(--color-text) 70%, transparent);">{{ answer }}</div>
+      </details>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; flex: 1; padding: 0 var(--space-4) var(--space-8); animation: ktRise 200ms ease-out;">
+      <h1 style="font-size: 40px; line-height: 1.05; margin: var(--space-4) 0 var(--space-2);">Importera</h1>
+      <p style="margin: 0 0 var(--space-6); font-size: 16px; max-width: 34ch; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Klistra in kursinnehållet. Kaza föreslår begrepp, frågor och rubriker — inget schemaläggs förrän du godkänt det.</p>
+
+      <textarea value="{{ material }}" onChange="{{ onMaterial }}" placeholder="Föreläsningsanteckningar, kapiteltext, kursmål, egna sammanfattningar …" spellcheck="false" style="width: 100%; box-sizing: border-box; min-height: 220px; resize: vertical; padding: var(--space-3); font-family: var(--font-body); font-size: 16px; line-height: 1.55; color: var(--color-text); background: var(--color-neutral-100); border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent); border-radius: var(--radius-md); caret-color: var(--color-accent);"></textarea>
+      <div style="margin-top: var(--space-1); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ materialMeta }}</div>
+
+      <button type="button" onClick="{{ generate }}" style="width: 100%; min-height: 56px; margin-top: var(--space-4); border: 0; border-radius: var(--radius-md); font-family: var(--font-heading); font-weight: 600; font-size: 17px; cursor: pointer; background: {{ generateBg }}; color: {{ generateInk }};">{{ generateLabel }}</button>
+      <div style="font-size: 12px; text-align: center; margin-top: var(--space-2); color: color-mix(in srgb, var(--color-text) 50%, transparent);">Nästa steg är granskning — du stryker det som inte ska komma tillbaka</div>
+
+      <div style="margin-top: var(--space-8); padding-top: var(--space-3); border-top: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent); font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--color-text) 55%, transparent);">PDF- och filimport finns inte än. Kopiera texten ur dokumentet så länge — bilder och formler följer ändå inte med.</div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDraft }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; flex: 1; padding: 0 var(--space-4) var(--space-8); animation: ktRise 200ms ease-out;">
+      <h1 style="font-size: 40px; line-height: 1.05; margin: var(--space-4) 0 var(--space-2);">Granska utkast</h1>
+      <p style="margin: 0 0 var(--space-2); font-size: 16px; max-width: 34ch; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Det här är enda stället du ser referenssvaren. Stryk det som är fel eller trivialt.</p>
+      <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-4); color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ draftMeta }}</div>
+
+      <sc-for list="{{ draftItems }}" as="d" hint-placeholder-count="4">
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) 0; border-top: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent); opacity: {{ d.opacity }};">
+          <sc-if value="{{ d.showConcept }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; align-items: baseline; gap: var(--space-2); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;">
+              <span style="color: var(--color-accent-700);">{{ d.concept }}</span>
+              <span style="color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ d.importance }}</span>
+            </div>
+          </sc-if>
+          <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1.3; text-wrap: pretty; text-decoration: {{ d.decoration }};">{{ d.question }}</div>
+          <div style="font-size: 14px; line-height: 1.5; text-wrap: pretty; padding-left: var(--space-3); border-left: 2px solid color-mix(in srgb, var(--color-text) 18%, transparent); color: color-mix(in srgb, var(--color-text) 65%, transparent);">{{ d.reference }}</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-1);">
+            <sc-for list="{{ d.criteria }}" as="c" hint-placeholder-count="3">
+              <div style="display: grid; grid-template-columns: 12px 1fr; gap: var(--space-2); align-items: start; font-size: 13px; line-height: 1.4; color: {{ c.ink }};">
+                <div style="width: 8px; height: 8px; margin-top: 6px; border-radius: 1px; border: 1px solid currentColor;"></div>
+                <div><span>{{ c.desc }}</span> <span style="font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 40%, transparent);">{{ c.meta }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+          <button type="button" onClick="{{ d.toggle }}" style="align-self: flex-start; margin-top: var(--space-1); min-height: 36px; padding: 0 var(--space-3); cursor: pointer; background: transparent; border: 1px solid color-mix(in srgb, var(--color-text) 20%, transparent); border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; color: var(--color-text);" style-hover="background: color-mix(in srgb, var(--color-text) 7%, transparent);">{{ d.toggleLabel }}</button>
+        </div>
+      </sc-for>
+
+      <div style="display: flex; gap: var(--space-3); margin-top: var(--space-6);">
+        <button type="button" onClick="{{ backToImport }}" style="min-height: 56px; padding: 0 var(--space-4); cursor: pointer; background: transparent; border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent); border-radius: var(--radius-md); font-family: var(--font-heading); font-size: 15px; color: var(--color-text);" style-hover="background: color-mix(in srgb, var(--color-text) 7%, transparent);">Tillbaka</button>
+        <button type="button" onClick="{{ save }}" style="flex: 1; min-height: 56px; border: 0; border-radius: var(--radius-md); background: var(--color-accent); color: var(--color-neutral-100); font-family: var(--font-heading); font-weight: 600; font-size: 17px; cursor: pointer;" style-hover="background: var(--color-accent-600);">{{ saveLabel }}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isHistory }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; flex: 1; padding: 0 var(--space-4) var(--space-8); animation: ktRise 200ms ease-out;">
+      <h1 style="font-size: 40px; line-height: 1.05; margin: var(--space-4) 0 var(--space-2);">Historik</h1>
+      <p style="margin: 0 0 var(--space-2); font-size: 16px; max-width: 34ch; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Frågorna visas utan svar — det här är en logg, inte repetition.</p>
+      <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-6); color: color-mix(in srgb, var(--color-text) 45%, transparent);">{{ historyMeta }}</div>
+
+      <sc-for list="{{ historyDays }}" as="day" hint-placeholder-count="2">
+        <div style="display: flex; flex-direction: column; margin-bottom: var(--space-6);">
+          <div style="font-family: var(--font-heading); font-size: 15px; padding-bottom: var(--space-2); border-bottom: 2px solid var(--color-text);">{{ day.day }}</div>
+          <sc-for list="{{ day.rows }}" as="row" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start; padding: var(--space-3) 0; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);">
+              <div style="width: 12px; height: 12px; margin-top: 5px; border-radius: 1px; background: {{ row.verdictFill }}; border: 1px solid {{ row.verdictBorder }};"></div>
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <div style="font-size: 16px; line-height: 1.35; text-wrap: pretty;">{{ row.q }}</div>
+                <div style="display: flex; align-items: baseline; gap: var(--space-3); font-size: 12px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-text) 50%, transparent);">
+                  <span style="color: {{ row.verdictInk }}; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;">{{ row.verdictLabel }}</span>
+                  <span>{{ row.score }}</span>
+                  <span style="color: {{ row.gapInk }};">gap {{ row.gap }}</span>
+                  <span style="margin-left: auto;">{{ row.concept }}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:900},&quot;showBudget&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Innehåll&quot;},&quot;allowFacit&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Innehåll&quot;}}">
+const ITEMS = [
+  {
+    concept: "Normalisering",
+    question: "Varför räcker inte 2NF? Ge villkoret som 3NF lägger till och vad det förhindrar.",
+    code: "",
+    facit: "3NF kräver att ingen icke-nyckelattribut är transitivt beroende av primärnyckeln. Det förhindrar uppdateringsanomalier där ett attribut som egentligen beskriver ett annat icke-nyckelattribut upprepas i varje rad.",
+    criteria: [
+      { id: "transitivt_beroende", required: true, desc: "Namnger transitivt beroende: ett icke-nyckelattribut beror på ett annat icke-nyckelattribut.", status: "miss" },
+      { id: "2nf_delberoende", required: true, desc: "Skiljer 2NF:s delberoende på sammansatt nyckel från 3NF:s villkor.", status: "partial" },
+      { id: "anomali_uppdatering", required: false, desc: "Kopplar villkoret till uppdateringsanomali, inte bara till \"mindre upprepning\".", status: "hit" },
+      { id: "exempel_konkret", required: false, desc: "Ger ett konkret schema där brottet syns.", status: "miss" }
+    ],
+    feedback: "Du beskriver symptomet — upprepad data — men inte beroendet som orsakar det. Frågan är vad ett attribut beror PÅ när det inte är nyckeln. Ta postnummer och ort i en kundtabell och säg vad som bestämmer vad.",
+    followup: "I tabellen Kund(kundid, postnr, ort): vilket attribut bestämmer vilket, och varför bryter det mot 3NF men inte mot 2NF?"
+  },
+  {
+    concept: "Index & exekvering",
+    question: "Planeraren väljer seq scan istället för ditt index. Ge två skäl till varför det kan vara rätt beslut.",
+    code: "CREATE INDEX idx_ord_kund ON ordrar(kund_id);\n\nEXPLAIN SELECT * FROM ordrar WHERE kund_id < 900000;\n  Seq Scan on ordrar  (cost=0.00..18334.00 rows=891233 width=44)\n    Filter: (kund_id < 900000)",
+    facit: "Hög selektivitet (predikatet matchar en stor andel rader) gör random I/O via indexet dyrare än en sekventiell läsning; och ett icke-täckande index kräver en heap-hämtning per träff.",
+    criteria: [
+      { id: "selektivitet", required: true, desc: "Hög andel matchande rader gör indexuppslag dyrare än sekventiell läsning.", status: "hit" },
+      { id: "random_vs_seq_io", required: true, desc: "Random I/O per träff mot sekventiell läsning av heapen.", status: "hit" },
+      { id: "tackande_index", required: false, desc: "Icke-täckande index kräver heap-hämtning; täckande index kan ändra beslutet.", status: "miss" }
+    ],
+    feedback: "Båda kärnskälen sitter. Det du inte nämnde är vad som skulle kunna vända beslutet — vilken egenskap hos indexet gör att planeraren slipper röra heapen alls?",
+    followup: "Vilken ändring av indexet skulle göra samma fråga till en index-only scan, och vad kostar den ändringen?"
+  }
+];
+
+const CONF = [
+  { v: 0.1, num: "0.1", label: "Gissar" },
+  { v: 0.3, num: "0.3", label: "Osäker" },
+  { v: 0.5, num: "0.5", label: "Halvsäker" },
+  { v: 0.7, num: "0.7", label: "Ganska" },
+  { v: 0.9, num: "0.9", label: "Säker" }
+];
+
+const CREDIT = { hit: 1, partial: 0.5, miss: 0 };
+
+const DRAFT = [
+  { concept: "Transaktioner", importance: "core", question: "Vad garanterar Atomicity, och vad garanterar den inte?",
+    reference: "Atomicity garanterar att alla operationer i transaktionen genomförs eller ingen alls. Den säger inget om huruvida sluttillståndet är giltigt — det är Consistency.",
+    criteria: [{ req: true, desc: "Allt-eller-inget för transaktionens operationer." }, { req: true, desc: "Avgränsar mot Consistency: giltigt sluttillstånd är ett annat löfte." }, { req: false, desc: "Nämner rollback som mekanismen." }] },
+  { concept: "Transaktioner", importance: "core", question: "Varför räcker inte en lyckad COMMIT för att data ska ha överlevt en strömavbrott?",
+    reference: "Durability kräver att ändringen nått beständigt lagringsmedium — i praktiken att WAL-posten är fsync:ad före COMMIT bekräftas.",
+    criteria: [{ req: true, desc: "Kopplar Durability till skrivning på beständigt medium." }, { req: false, desc: "Nämner WAL eller fsync som mekanismen." }] },
+  { concept: "Isolationsnivåer", importance: "core", question: "Vilken anomali tillåter READ COMMITTED som REPEATABLE READ stänger?",
+    reference: "Non-repeatable read: samma rad läst två gånger i samma transaktion kan ge olika värden, eftersom READ COMMITTED tar en ny snapshot per sats.",
+    criteria: [{ req: true, desc: "Namnger non-repeatable read." }, { req: true, desc: "Förklarar orsaken: snapshot per sats mot per transaktion." }, { req: false, desc: "Skiljer den från phantom read." }] },
+  { concept: "Isolationsnivåer", importance: "supporting", question: "Vad kostar SERIALIZABLE i ett system med hög samtidighet?",
+    reference: "Fler serialiseringskonflikter och därmed fler avbrutna transaktioner som applikationen måste försöka om — genomströmning byts mot korrekthetsgaranti.",
+    criteria: [{ req: true, desc: "Namnger avvägningen isolering mot samtidighet." }, { req: false, desc: "Nämner retry-logik som applikationens ansvar." }] },
+  { concept: "Normalisering", importance: "core", question: "Ge villkoret som 3NF lägger till utöver 2NF.",
+    reference: "Inget icke-nyckelattribut får vara transitivt beroende av primärnyckeln.",
+    criteria: [{ req: true, desc: "Namnger transitivt beroende." }, { req: true, desc: "Avgränsar mot 2NF:s delberoende på sammansatt nyckel." }, { req: false, desc: "Ger ett konkret schema där brottet syns." }] }
+];
+
+const HISTORY = [
+  { day: "Igår, 24 aug", rows: [
+    { concept: "Isolationsnivåer", q: "Vilken anomali tillåter READ COMMITTED?", verdict: "confidently_wrong", score: "0.30", gap: "+0.60" },
+    { concept: "Transaktioner", q: "Vad garanterar Atomicity, och vad inte?", verdict: "correct", score: "1.00", gap: "-0.10" },
+    { concept: "Index & exekvering", q: "Två skäl till seq scan över index.", verdict: "correct_incomplete", score: "0.71", gap: "+0.19" },
+    { concept: "Normalisering", q: "Villkoret 3NF lägger till.", verdict: "partial", score: "0.42", gap: "+0.08" }
+  ] },
+  { day: "Fre 22 aug", rows: [
+    { concept: "Normalisering", q: "Vad är en uppdateringsanomali?", verdict: "wrong", score: "0.00", gap: "+0.30" },
+    { concept: "Transaktioner", q: "Varför räcker inte COMMIT?", verdict: "correct", score: "0.92", gap: "+0.02" },
+    { concept: "Isolationsnivåer", q: "Vad kostar SERIALIZABLE?", verdict: "correct_incomplete", score: "0.67", gap: "-0.03" }
+  ] }
+];
+
+const VERDICT_MARK = {
+  correct: { label: "Rätt", ink: "var(--color-text)", fill: "var(--color-text)" },
+  correct_incomplete: { label: "Ofullständigt", ink: "var(--color-accent-800)", fill: "var(--color-accent)" },
+  partial: { label: "Delvis", ink: "var(--color-neutral-600)", fill: "var(--color-neutral-500)" },
+  confidently_wrong: { label: "Säker och fel", ink: "var(--color-accent-2-800)", fill: "var(--color-accent-2)" },
+  wrong: { label: "Fel", ink: "var(--color-neutral-600)", fill: "transparent" }
+};
+
+class Component extends DCLogic {
+  state = {
+    screen: "today",
+    idx: 0,
+    answer: "",
+    conf: null,
+    attempt: 1,
+    done: 6,
+    result: null,
+    facitOpen: false,
+    followupMode: false,
+    material: "",
+    struck: []
+  };
+
+  item() { return ITEMS[this.state.idx % ITEMS.length]; }
+
+  grade() {
+    const item = this.item();
+    // score: weighted credit ratio, required criteria count double (app/scoring.py)
+    let credit = 0, total = 0;
+    item.criteria.forEach(c => {
+      const w = c.required ? 2 : 1;
+      total += w;
+      credit += w * CREDIT[c.status];
+    });
+    const score = Math.round((credit / total) * 100) / 100;
+    const reqs = item.criteria.filter(c => c.required);
+    const allReqHit = reqs.every(c => c.status === "hit");
+    const allReqCovered = reqs.every(c => c.status !== "miss");
+    const conf = this.state.conf;
+    let verdict;
+    if (allReqHit && score >= 0.85) verdict = "correct";
+    else if (allReqHit || (allReqCovered && score >= 0.6)) verdict = "correct_incomplete";
+    else if (score < 0.5 && conf >= 0.7) verdict = "confidently_wrong";
+    else if (credit > 0) verdict = "partial";
+    else verdict = "wrong";
+    return { score, verdict, confidence_gap: Math.round((conf - score) * 100) / 100 };
+  }
+
+  renderVals() {
+    const s = this.state, item = this.item(), r = s.result;
+    const total = 20, done = s.done;
+    const ticks = Array.from({ length: total }, (_, i) => ({
+      h: i < done ? "100%" : "45%",
+      bg: i < done ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 16%, transparent)"
+    }));
+
+    const words = s.answer.trim() ? s.answer.trim().split(/\s+/).length : 0;
+    const ready = words >= 3 && s.conf !== null;
+
+    const confOptions = CONF.map(c => ({
+      num: c.num, label: c.label,
+      bg: s.conf === c.v ? "var(--color-accent)" : "transparent",
+      ink: s.conf === c.v ? "var(--color-neutral-100)" : "var(--color-text)",
+      border: s.conf === c.v ? "var(--color-accent)" : "color-mix(in srgb, var(--color-text) 20%, transparent)",
+      pick: () => this.setState({ conf: c.v })
+    }));
+
+    const rows = st => item.criteria.filter(c => c.status === st).map(c => ({
+      desc: c.desc,
+      meta: (c.required ? "obligatoriskt · " : "stödjande · ") + c.id
+    }));
+    const hits = r ? rows("hit") : [], partials = r ? rows("partial") : [], misses = r ? rows("miss") : [];
+    const gap = r ? r.confidence_gap : 0;
+
+    const inPass = s.screen === "session" || s.screen === "graded";
+    const nav = [
+      { key: "today", label: "Idag" },
+      { key: "session", label: "Plugga" },
+      { key: "import", label: "Importera" },
+      { key: "history", label: "Historik" }
+    ].map(n => {
+      const on = s.screen === n.key || (n.key === "session" && inPass);
+      return {
+        label: n.label,
+        ink: on ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 45%, transparent)",
+        rule: on ? "var(--color-accent)" : "transparent",
+        go: () => this.setState(n.key === "session"
+          ? { screen: "session" }
+          : { screen: n.key })
+      };
+    });
+
+    const chars = s.material.trim().length;
+    const estConcepts = Math.max(1, Math.round(chars / 300));
+    const estCost = (0.004 + estConcepts * 0.067).toFixed(2);
+
+    let lastConcept = null;
+    const draftItems = DRAFT.map((d, i) => {
+      const showConcept = d.concept !== lastConcept;
+      lastConcept = d.concept;
+      const struck = s.struck.indexOf(i) !== -1;
+      return {
+        concept: d.concept, showConcept, importance: d.importance,
+        question: d.question, reference: d.reference, criteria: d.criteria.map(c => ({
+          desc: c.desc, meta: c.req ? "obligatoriskt" : "stödjande",
+          ink: c.req ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 50%, transparent)"
+        })),
+        opacity: struck ? 0.35 : 1,
+        decoration: struck ? "line-through" : "none",
+        toggleLabel: struck ? "Ångra" : "Stryk",
+        toggle: () => this.setState(st => ({
+          struck: st.struck.indexOf(i) !== -1 ? st.struck.filter(x => x !== i) : st.struck.concat([i])
+        }))
+      };
+    });
+
+    const historyDays = HISTORY.map(d => ({
+      day: d.day,
+      rows: d.rows.map(row => {
+        const m = VERDICT_MARK[row.verdict];
+        return {
+          concept: row.concept, q: row.q, score: row.score, gap: row.gap,
+          verdictLabel: m.label, verdictInk: m.ink, verdictFill: m.fill,
+          verdictBorder: m.fill === "transparent" ? "var(--color-neutral-500)" : m.fill,
+          gapInk: parseFloat(row.gap) >= 0.3 ? "var(--color-accent-2)" : "color-mix(in srgb, var(--color-text) 50%, transparent)"
+        };
+      })
+    }));
+
+    return {
+      isToday: s.screen === "today",
+      isSession: s.screen === "session",
+      isGraded: s.screen === "graded",
+      isImport: s.screen === "import",
+      isDraft: s.screen === "draft",
+      isHistory: s.screen === "history",
+      showNav: !inPass,
+      nav,
+      material: s.material,
+      onMaterial: e => this.setState({ material: e.target.value }),
+      materialMeta: chars === 0 ? "Inget inklistrat än" : chars + " tecken · ≈ " + estConcepts + " begrepp · ~$" + estCost,
+      canGenerate: chars >= 200,
+      generateLabel: chars >= 200 ? "Generera utkast · ~$" + estCost : "Klistra in minst 200 tecken",
+      generateBg: chars >= 200 ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 12%, transparent)",
+      generateInk: chars >= 200 ? "var(--color-neutral-100)" : "color-mix(in srgb, var(--color-text) 45%, transparent)",
+      generate: () => { if (chars >= 200) this.setState({ screen: "draft" }); },
+      draftItems,
+      draftMeta: "5 begrepp · " + DRAFT.length + " frågor · $0.31 spenderat på generering",
+      saveLabel: "Spara " + (DRAFT.length - s.struck.length) + " frågor",
+      save: () => this.setState({ screen: "today" }),
+      backToImport: () => this.setState({ screen: "import" }),
+      historyDays,
+      historyMeta: "38 rättningar · medelgap +0.12 · 3 gånger säker och fel",
+      exitPass: () => this.setState({ screen: "today", result: null, followupMode: false }),
+      dateline: "Tis 25 aug",
+      todayLine: "Tolv frågor väntar. Du plockar fram svaren; inget läses upp för dig.",
+      dueCount: 12, conceptCount: 5, ticks,
+      passLine: done + " av 20 i dagens pass",
+      startLabel: done > 0 ? "Fortsätt passet" : "Börja passet",
+      capLine: "Passet stängs vid 20 frågor eller 25 minuter",
+      weak: [
+        { name: "Normalisering", pct: "34%", ink: "var(--color-accent-2)", note: "3 av 4 frågor missade senast · core" },
+        { name: "Isolationsnivåer", pct: "52%", ink: "var(--color-accent)", note: "Säker och fel två gånger i rad · core" },
+        { name: "Index & exekvering", pct: "68%", ink: "var(--color-accent)", note: "Stabil, men följdfrågorna sitter inte · supporting" }
+      ],
+      showBudget: this.props.showBudget ?? true,
+      budgetPct: "64%",
+      budgetInk: "var(--color-accent)",
+      budgetLine: "$6.40 av $10 den här månaden · 38 rättningar",
+
+      concept: item.concept,
+      attemptLine: "Fråga " + (done + 1) + "/20 · försök " + s.attempt + "/3",
+      question: s.followupMode ? ITEMS[(s.idx) % ITEMS.length].followup : item.question,
+      hasCode: !s.followupMode && !!item.code,
+      code: item.code,
+      answer: s.answer,
+      onAnswer: e => this.setState({ answer: e.target.value }),
+      wordLine: words === 0 ? "Skriv innan du ser något" : words + " ord",
+      confOptions,
+      confHint: s.conf === null ? "Krävs före facit" : "Låst till " + s.conf,
+      confHintInk: s.conf === null ? "var(--color-accent-2)" : "color-mix(in srgb, var(--color-text) 45%, transparent)",
+      submitDisabled: !ready,
+      submitLabel: s.conf === null ? "Sätt säkerhet först" : (words < 3 ? "Skriv ditt svar" : "Lämna in"),
+      submitBg: ready ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 12%, transparent)",
+      submitInk: ready ? "var(--color-neutral-100)" : "color-mix(in srgb, var(--color-text) 45%, transparent)",
+      submitOpacity: ready ? 1 : 1,
+      submit: () => { if (!ready) return; this.setState({ result: this.grade(), screen: "graded", facitOpen: false }); },
+
+      vCorrect: r ? r.verdict === "correct" : false,
+      vIncomplete: r ? r.verdict === "correct_incomplete" : false,
+      vPartial: r ? r.verdict === "partial" : false,
+      vConfWrong: r ? r.verdict === "confidently_wrong" : false,
+      vWrong: r ? r.verdict === "wrong" : false,
+      hits, partials, misses,
+      hasHits: hits.length > 0, noHits: !!r && hits.length === 0,
+      hasPartials: partials.length > 0, hasMisses: misses.length > 0,
+      scoreText: r ? r.score.toFixed(2) : "",
+      confText: s.conf !== null ? s.conf.toFixed(1) : "",
+      gapText: r ? (gap > 0 ? "+" : "") + gap.toFixed(2) : "",
+      gapInk: gap >= 0.3 ? "var(--color-accent-2)" : "var(--color-text)",
+      feedback: item.feedback,
+      followup: item.followup,
+      allowFacit: this.props.allowFacit ?? true,
+      facitOpen: s.facitOpen,
+      facit: item.facit,
+      showFacit: () => this.setState({ facitOpen: true }),
+
+      startSession: () => this.setState({ screen: "session", answer: "", conf: null, followupMode: false }),
+      retry: () => this.setState({ screen: "session", answer: "", conf: null, followupMode: true, attempt: s.attempt + 1 }),
+      next: () => this.setState({
+        screen: "session", answer: "", conf: null, followupMode: false,
+        attempt: 1, idx: s.idx + 1, done: Math.min(20, s.done + 1), result: null
+      })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

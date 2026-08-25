@@ -164,6 +164,10 @@ class DueItem(BaseModel):
     prompt: str
     due_at: str | None
     seen_before: bool
+    # Attempts spent on this item in the current sitting, and the ceiling.
+    # Server-side state (app/main.py `_sitting`) the client cannot derive.
+    attempt: int = 0
+    attempts_allowed: int = 0
 
 
 class SessionQueue(BaseModel):
@@ -190,6 +194,10 @@ class ReviewResponse(BaseModel):
     reference_answer: str
     next_due_at: str
     interval_days: float
+    # The item's rubric, so a client can join rubric_hits[].id -> desc. A hit
+    # carries the grader's note (why), never the criterion text (what), and a
+    # result screen that lists what you missed needs the what.
+    rubric: list[RubricCriterion] = []
 
 
 class ConceptMastery(BaseModel):
