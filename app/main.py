@@ -3,6 +3,7 @@ grading -> mastery. One course, no auth, no PDF."""
 
 from __future__ import annotations
 
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,6 +95,10 @@ def health() -> dict:
         "concept_model": settings.concept_model,
         # False on the memory store: the cap cannot survive a restart there.
         "budget_persistent": store.backend == "postgres",
+        # Which commit is actually serving. Render sets this; locally it is
+        # None. Without it "did my push land?" cannot be answered from outside
+        # the dashboard, and the gate keeps everything else out.
+        "commit": (os.getenv("RENDER_GIT_COMMIT") or "local")[:7],
     }
 
 
