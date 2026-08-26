@@ -145,3 +145,14 @@ def test_a_good_database_url_passes_through_stripped():
 
     dsn = "  postgresql://user:pw@aws-1-eu-west-1.pooler.supabase.com:5432/postgres  "
     assert _check_dsn(dsn) == dsn.strip()
+
+
+def test_the_manifest_link_asks_for_credentials():
+    """A manifest is fetched without cookies unless the link says otherwise.
+    Behind the gate that is a 401, and a 401 manifest silently downgrades the
+    PWA to a bookmark — installable-looking, not installable."""
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parent.parent / "web" / "index.html").read_text(encoding="utf-8")
+    link = next(l for l in html.splitlines() if 'rel="manifest"' in l)
+    assert 'crossorigin="use-credentials"' in link, link

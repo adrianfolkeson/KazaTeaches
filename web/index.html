@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f3f2f2">
 <title>KazaTeaches</title>
-<link rel="manifest" href="/manifest.json">
+<!-- use-credentials: a manifest is fetched WITHOUT cookies by default, even
+     same-origin. Behind the access gate that is a 401, and a 401 manifest
+     means no standalone install - Add to Home Screen degrades to a plain
+     bookmark. This is the one asset where same-origin is not enough. -->
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
 <meta name="apple-mobile-web-app-capable" content="yes">
