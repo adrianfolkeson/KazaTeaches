@@ -39,6 +39,24 @@ class AIError(RuntimeError):
     pass
 
 
+def _why(exc: BaseException, depth: int = 4) -> str:
+    """Unwrap the __cause__ chain into one line.
+
+    An SDK error that says only "Connection error." is unactionable, and on a
+    platform you cannot attach a debugger to, the exception chain is the only
+    evidence there is.
+    """
+    parts, seen = [], set()
+    cur: BaseException | None = exc
+    while cur is not None and len(parts) < depth and id(cur) not in seen:
+        seen.add(id(cur))
+        text = str(cur).strip()
+        label = type(cur).__name__
+        parts.append(f"{label}: {text}" if text else label)
+        cur = cur.__cause__ or cur.__context__
+    return " <- ".join(parts)
+
+
 def client() -> anthropic.Anthropic:
     global _client
     if _client is None:
@@ -91,7 +109,10 @@ def parse(
     except anthropic.APIStatusError as e:
         raise AIError(f"Anthropic API error {e.status_code}: {e.message}") from e
     except anthropic.APIConnectionError as e:
-        raise AIError(f"Could not reach the Anthropic API: {e}") from e
+        # httpx reports "Connection error." and hides the reason in __cause__.
+        # DNS failure, a missing CA bundle and a dropped socket all print the
+        # same three words, and the difference is the whole diagnosis.
+        raise AIError(f"Could not reach the Anthropic API: {_why(e)}") from e
 
     # Meter first: the tokens are billed whether or not the response parses, so
     # a refusal or a malformed output must still count against the cap.

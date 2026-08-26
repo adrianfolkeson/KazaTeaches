@@ -156,3 +156,31 @@ def test_the_manifest_link_asks_for_credentials():
     html = (Path(__file__).resolve().parent.parent / "web" / "index.html").read_text(encoding="utf-8")
     link = next(l for l in html.splitlines() if 'rel="manifest"' in l)
     assert 'crossorigin="use-credentials"' in link, link
+
+
+def test_a_connection_failure_reports_its_cause_not_just_its_class():
+    """The SDK's own message for a TLS or DNS failure is 'Connection error.' —
+    three words that fit every possible reason. On a platform you cannot attach
+    a debugger to, the exception chain is the only evidence available."""
+    from app.ai.client import _why
+
+    root = OSError("[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer")
+    middle = ConnectionError("Connection error.")
+    middle.__cause__ = root
+
+    line = _why(middle)
+    assert "CERTIFICATE_VERIFY_FAILED" in line
+    assert "<-" in line, "the chain must be visible, not just the outermost error"
+
+
+def test_the_cause_chain_survives_a_cycle():
+    a = ValueError("outer")
+    b = ValueError("inner")
+    a.__cause__ = b
+    b.__cause__ = a          # a chain that would otherwise loop forever
+    assert "outer" in _why_import()(a)
+
+
+def _why_import():
+    from app.ai.client import _why
+    return _why
