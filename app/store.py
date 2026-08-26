@@ -110,6 +110,30 @@ class MemoryStore:
         out.sort(key=lambda r: (r["due_at"] is not None, r["due_at"] or now))
         return out
 
+    def history(self, course_id: str, limit: int = 200) -> list[dict]:
+        """Past reviews, newest first. A log, not a queue — no answers, no
+        rubric, nothing to study from."""
+        rows = []
+        for r in self.reviews:
+            item = self.items.get(r["item_id"])
+            if not item:
+                continue
+            concept = self.concepts[item["concept_id"]]
+            if concept["course_id"] != course_id:
+                continue
+            rows.append(
+                {
+                    "reviewed_at": r["reviewed_at"],
+                    "prompt": item["prompt"],
+                    "concept_name": concept["name"],
+                    "verdict": r["verdict"],
+                    "score": r["score"],
+                    "confidence": r["confidence"],
+                }
+            )
+        rows.sort(key=lambda r: r["reviewed_at"], reverse=True)
+        return rows[:limit]
+
     # --- spend ledger (app/budget.py) --------------------------------------
 
     def record_spend(self, model: str, cost_usd: float, usage: object) -> None:
@@ -301,6 +325,19 @@ class PostgresStore:
             row["item_id"] = str(row["item_id"])
             row["concept_id"] = str(row["concept_id"])
         return rows
+
+    def history(self, course_id: str, limit: int = 200) -> list[dict]:
+        with self._conn() as conn:
+            return conn.execute(
+                "select r.reviewed_at, r.verdict, r.score, r.confidence,"
+                "       i.prompt, c.name as concept_name"
+                "  from reviews r"
+                "  join items i on i.id = r.item_id"
+                "  join concepts c on c.id = i.concept_id"
+                " where c.course_id = %s"
+                " order by r.reviewed_at desc limit %s",
+                (course_id, limit),
+            ).fetchall()
 
     # --- spend ledger (app/budget.py) --------------------------------------
 

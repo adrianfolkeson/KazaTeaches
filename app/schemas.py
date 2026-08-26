@@ -216,6 +216,27 @@ class ProgressResponse(BaseModel):
     concepts: list[ConceptMastery]
 
 
+class HistoryRow(BaseModel):
+    reviewed_at: str
+    prompt: str
+    concept_name: str
+    verdict: Verdict
+    score: float
+    confidence: float
+    confidence_gap: float
+
+
+class HistoryDay(BaseModel):
+    day: str
+    rows: list[HistoryRow]
+
+
+class HistoryResponse(BaseModel):
+    course_id: str
+    total: int
+    days: list[HistoryDay]
+
+
 class ModelSpend(BaseModel):
     model: str
     calls: int

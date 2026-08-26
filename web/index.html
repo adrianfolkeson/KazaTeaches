@@ -22,6 +22,12 @@
 <body>
 <div class="kt-app">
 
+  <nav class="kt-nav" id="nav">
+    <button data-go="s-today" aria-current="true">Idag</button>
+    <button data-go="s-import">Importera</button>
+    <button data-go="s-history">Historik</button>
+  </nav>
+
   <!-- ── Idag ────────────────────────────────────────────────────────── -->
   <section class="kt-screen" id="s-today" data-on>
     <div style="padding: 0 var(--space-4) var(--space-8); display:flex; flex-direction:column; flex:1;">
@@ -138,6 +144,70 @@
         <div id="your-answer" style="margin-top:var(--space-2); font-size:15px; line-height:1.55;
              white-space:pre-wrap; color:color-mix(in srgb, var(--color-text) 70%, transparent);"></div>
       </details>
+    </div>
+  </section>
+
+  <!-- ── Importera ───────────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-import">
+    <div style="padding:0 var(--space-4) var(--space-8); display:flex; flex-direction:column; flex:1;">
+      <h1 style="font-size:40px; line-height:1.05; margin:var(--space-4) 0 var(--space-2);">Importera</h1>
+      <p style="margin:0 0 var(--space-6); font-size:16px; max-width:34ch;
+         color:color-mix(in srgb, var(--color-text) 70%, transparent);">
+        Klistra in kursinnehållet. Kaza föreslår begrepp, frågor och rubriker — inget
+        schemaläggs förrän du godkänt det.</p>
+
+      <div id="pending-draft" class="kt-pending" hidden>
+        <span></span>
+        <button class="kt-btn kt-btn-ghost" id="resume-draft"
+                style="min-height:40px; width:auto; padding:0 var(--space-3); flex:0 0 auto;">Fortsätt granska</button>
+      </div>
+
+      <textarea id="material" class="kt-answer" style="min-height:220px; font-size:16px;"
+                spellcheck="false"
+                placeholder="Föreläsningsanteckningar, kapiteltext, kursmål, egna sammanfattningar …"></textarea>
+      <div class="kt-eyebrow kt-num" id="material-meta" style="margin-top:var(--space-1); letter-spacing:.06em;"></div>
+
+      <button class="kt-btn" id="generate" style="margin-top:var(--space-4);" disabled>Generera frågor</button>
+      <div id="generate-msg" style="font-size:12px; text-align:center; margin-top:var(--space-2);
+           color:color-mix(in srgb, var(--color-text) 50%, transparent);">
+        Nästa steg är granskning — du stryker det som inte ska komma tillbaka</div>
+
+      <div style="margin-top:var(--space-8); padding-top:var(--space-3);
+           border-top:1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+           font-size:13px; line-height:1.5; color:color-mix(in srgb, var(--color-text) 55%, transparent);">
+        PDF- och filimport finns inte än. Kopiera texten ur dokumentet så länge — bilder
+        och formler följer ändå inte med.</div>
+    </div>
+  </section>
+
+  <!-- ── Granska utkast ──────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-draft">
+    <div style="padding:0 var(--space-4) var(--space-8); display:flex; flex-direction:column; flex:1;">
+      <h1 style="font-size:40px; line-height:1.05; margin:var(--space-4) 0 var(--space-2);">Granska utkast</h1>
+      <p style="margin:0 0 var(--space-2); font-size:16px; max-width:34ch;
+         color:color-mix(in srgb, var(--color-text) 70%, transparent);">
+        Det här är enda stället du ser referenssvaren. Stryk det som är fel eller trivialt.</p>
+      <div class="kt-eyebrow" id="draft-meta" style="margin-bottom:var(--space-4); letter-spacing:.08em;"></div>
+
+      <div id="draft-items"></div>
+
+      <div style="display:flex; gap:var(--space-3); margin-top:var(--space-6);">
+        <button class="kt-btn kt-btn-ghost" id="draft-back"
+                style="min-height:56px; flex:0 0 auto; padding:0 var(--space-4);">Tillbaka</button>
+        <button class="kt-btn" id="draft-save" style="flex:1;">Spara</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Historik ────────────────────────────────────────────────────── -->
+  <section class="kt-screen" id="s-history">
+    <div style="padding:0 var(--space-4) var(--space-8); display:flex; flex-direction:column; flex:1;">
+      <h1 style="font-size:40px; line-height:1.05; margin:var(--space-4) 0 var(--space-2);">Historik</h1>
+      <p style="margin:0 0 var(--space-2); font-size:16px; max-width:34ch;
+         color:color-mix(in srgb, var(--color-text) 70%, transparent);">
+        Frågorna visas utan svar — det här är en logg, inte repetition.</p>
+      <div class="kt-eyebrow" id="history-meta" style="margin-bottom:var(--space-6); letter-spacing:.08em;"></div>
+      <div id="history-days"></div>
     </div>
   </section>
 

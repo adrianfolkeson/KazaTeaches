@@ -195,6 +195,14 @@ total 38 reviews  ~$0.42/week
 
 Effort followed difficulty per item, which is the whole point of §3.
 
+### History
+
+`GET /api/history` returns past reviews grouped by UTC day: the question, the
+verdict, the score, the confidence gap and the concept. Deliberately not the
+answer, not the reference, not the rubric — reading it must not become a cheap
+substitute for answering the questions again. The verdict marks are the same
+ones the result screen uses, so they mean one thing across the app.
+
 ## Cost architecture (§5)
 
 | Lane | Model (env var) | Used for |
@@ -284,6 +292,23 @@ composing and nothing else would notice.
 `importance` is `core | supporting | nice_to_know` rather than 1-5. The number
 had no agreed meaning in its middle, and the only thing it is ever used for is
 how many items to write (4 / 3 / 2) and what to study first.
+
+### The review gate on screen
+
+Importera → Granska utkast → save is one flow, and the nav is hidden for the
+whole of it, as it is during a sitting. Three screens can lose something if you
+walk away mid-way: an answer in progress, a result you have not read, and a
+generated draft.
+
+The draft is the expensive one. It exists only in the page and in the server's
+staging dict, and it cost real money to produce. Leaving the review screen
+therefore leaves a way back to it — Importera shows what is pending and a button
+that returns to it — rather than stranding it where the only recovery is to
+generate again and pay again.
+
+Struck items stay on the page, greyed and struck through, instead of
+disappearing. The decision is reversible until save, and a row that vanished
+could not be brought back.
 
 ### The self-check
 

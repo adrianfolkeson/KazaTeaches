@@ -30,6 +30,9 @@ from app.schemas import (
     GenerationDraft,
     GradingInput,
     GradingOutput,
+    HistoryDay,
+    HistoryResponse,
+    HistoryRow,
     IngestResponse,
     SessionQueue,
     BudgetStatus,
@@ -357,6 +360,34 @@ def progress() -> ProgressResponse:
         due_now=len(store.due_items(course_id)),
         concepts=store.progress(course_id),
     )
+
+
+@app.get("/api/history", response_model=HistoryResponse)
+def history(limit: int = 200) -> HistoryResponse:
+    """Past reviews, grouped by day. A log: the questions without their answers,
+    so reading it is not a cheap substitute for answering them again."""
+    course_id = store.ensure_course(settings.course_name)
+    rows = store.history(course_id, limit=limit)
+
+    days: list[HistoryDay] = []
+    for row in rows:
+        when = row["reviewed_at"]
+        day = when.date().isoformat()
+        entry = HistoryRow(
+            reviewed_at=when.isoformat(),
+            prompt=row["prompt"],
+            concept_name=row["concept_name"],
+            verdict=row["verdict"],
+            score=round(float(row["score"]), 4),
+            confidence=round(float(row["confidence"]), 4),
+            confidence_gap=round(float(row["confidence"]) - float(row["score"]), 4),
+        )
+        if days and days[-1].day == day:
+            days[-1].rows.append(entry)
+        else:
+            days.append(HistoryDay(day=day, rows=[entry]))
+
+    return HistoryResponse(course_id=course_id, total=len(rows), days=days)
 
 
 @app.get("/")

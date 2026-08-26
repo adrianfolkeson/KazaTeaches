@@ -23,8 +23,19 @@ function fail(e) {
   el.textContent = e.message;
 }
 
+// Screens you cannot navigate away from without losing something: an answer in
+// progress, a result you have not read, or a generated draft that cost money
+// and only exists until it is saved.
+const NO_EXIT = new Set(["s-session", "s-graded", "s-draft"]);
+const NAV_FOR = { "s-today": "s-today", "s-import": "s-import", "s-draft": "s-import",
+                  "s-history": "s-history" };
+
 function show(id) {
   document.querySelectorAll(".kt-screen").forEach((s) => s.toggleAttribute("data-on", s.id === id));
+  const nav = $("#nav");
+  nav.hidden = NO_EXIT.has(id);
+  nav.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-current", String(b.dataset.go === NAV_FOR[id])));
   window.scrollTo(0, 0);
 }
 
@@ -86,10 +97,10 @@ async function loadToday() {
 
     $("#today-line").textContent =
       s.due_total === 0 && s.reviews_done === 0
-        ? "Inget är förfallet. Importera material eller kom tillbaka senare."
+        ? "Inget är förfallet. Importera material för att komma igång."
         : s.reviews_left === 0
           ? "Dagens pass är klart. Det som är kvar leder morgondagens kö."
-          : `${s.items.length} frågor väntar, från ${s.concepts_covered} begrepp.`;
+          : `${s.items.length === 1 ? "1 fråga väntar" : s.items.length + " frågor väntar"}, från ${s.concepts_covered} ${s.concepts_covered === 1 ? "begrepp" : "begrepp"}.`;
 
     $("#start").disabled = s.items.length === 0;
     $("#start").textContent = s.reviews_done ? "Fortsätt passet" : "Starta passet";
@@ -143,6 +154,8 @@ async function nextQuestion() {
     current = await api("/api/next");
     if (!current) {
       await loadToday();
+materialMeta();
+pendingDraft();
       show("s-today");
       return;
     }
@@ -257,7 +270,194 @@ function renderGrading(res, answer) {
     : `Kommer tillbaka om ${Math.round(d)} dagar`;
 }
 
+/* ── Importera ─────────────────────────────────────────────────────────── */
+let draft = null;
+const cutItems = new Set();
+
+function pendingDraft() {
+  // A generated draft lives only in this page and in the server's staging dict.
+  // Leaving the review screen must therefore leave a way back, or the only way
+  // to recover it is to generate again and pay again.
+  const banner = $("#pending-draft");
+  if (!draft) { banner.hidden = true; return; }
+  const kept = draft.concepts.reduce((n, c) =>
+    n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
+  banner.hidden = false;
+  banner.querySelector("span").textContent =
+    `Ogranskat utkast: ${kept === 1 ? "1 fråga" : kept + " frågor"}, redan betalt.`;
+}
+
+function materialMeta() {
+  const text = $("#material").value.trim();
+  const chars = text.length;
+  $("#material-meta").textContent = chars ? `${chars} tecken` : "";
+  // The server refuses under 200; say so here rather than after a round trip.
+  $("#generate").disabled = chars < 200;
+  $("#generate").textContent = chars && chars < 200
+    ? `Behöver minst 200 tecken (${chars})` : "Generera frågor";
+}
+
+async function generate() {
+  const text = $("#material").value.trim();
+  $("#generate").disabled = true;
+  $("#generate").textContent = "Genererar…";
+  $("#generate-msg").textContent =
+    "Det här tar en stund. Frågor och rubriker skrivs en gång, här.";
+  try {
+    draft = await api("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    cutItems.clear();
+    renderDraft();
+    pendingDraft();
+    show("s-draft");
+    loadBudget();
+  } catch (e) {
+    $("#generate-msg").textContent = e.message;
+    $("#generate-msg").style.color = "var(--color-accent-2)";
+  } finally {
+    materialMeta();
+  }
+}
+
+/* ── Granska utkast ────────────────────────────────────────────────────── */
+const IMPORTANCE = { core: "kärna", supporting: "stöd", nice_to_know: "detalj" };
+
+function renderDraft() {
+  if (!draft) return;
+  const kept = draft.concepts.reduce((n, c) =>
+    n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
+
+  $("#draft-meta").textContent =
+    `${draft.concepts.length} begrepp · ${draft.n_items} ${draft.n_items === 1 ? "fråga" : "frågor"} · $${draft.cost_usd.toFixed(3)}`;
+
+  $("#draft-items").innerHTML = draft.concepts.map((c) =>
+    c.items.map((item, idx) => {
+      const key = `${c.name}::${item.prompt}`;
+      const cut = cutItems.has(key);
+      return `<div class="kt-draft"${cut ? " data-cut" : ""}>
+        ${idx === 0 ? `<div class="kt-eyebrow" style="letter-spacing:.09em;">
+            <span style="color:var(--color-accent-700);">${esc(c.name)}</span>
+            <span style="margin-left:var(--space-2);">${esc(IMPORTANCE[c.importance] ?? c.importance)}</span>
+          </div>` : ""}
+        <div class="q">${renderProse(item.prompt)}</div>
+        <div class="ref">${renderProse(item.reference_answer)}</div>
+        <div>${item.rubric.map((r) =>
+          `<div class="crit"${r.required ? " data-req" : ""}><i></i><div>${esc(r.desc)}
+             <span style="font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+                   color:color-mix(in srgb, var(--color-text) 40%, transparent);">
+               ${r.required ? "krävs" : "extra"}</span></div></div>`).join("")}</div>
+        <button class="cut-btn" data-key="${esc(key)}">${cut ? "Ångra" : "Stryk"}</button>
+      </div>`;
+    }).join("")).join("");
+
+  $("#draft-items").querySelectorAll("[data-key]").forEach((b) => {
+    b.onclick = () => {
+      const k = b.dataset.key;
+      cutItems.has(k) ? cutItems.delete(k) : cutItems.add(k);
+      renderDraft();
+    };
+  });
+
+  $("#draft-save").textContent = kept
+    ? (kept === 1 ? "Spara 1 fråga" : `Spara ${kept} frågor`)
+    : "Inget att spara";
+  $("#draft-save").disabled = kept === 0;
+  pendingDraft();
+}
+
+async function saveDraft() {
+  $("#draft-save").disabled = true;
+  $("#draft-save").textContent = "Sparar…";
+  try {
+    const res = await api("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ draft_id: draft.draft_id, reject_items: [...cutItems] }),
+    });
+    draft = null;
+    cutItems.clear();
+    pendingDraft();
+    $("#material").value = "";
+    materialMeta();
+    $("#generate-msg").style.color = "";
+    $("#generate-msg").textContent =
+      `Sparat: ${res.concepts} begrepp, ${res.items === 1 ? "1 fråga" : res.items + " frågor"}. Due nu.`;
+    await loadToday();
+    show("s-today");
+  } catch (e) {
+    fail(e);
+    renderDraft();
+  }
+}
+
+/* ── Historik ──────────────────────────────────────────────────────────── */
+const DAYS = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
+
+function dayLabel(iso) {
+  const d = new Date(iso + "T00:00:00");
+  const today = new Date().toISOString().slice(0, 10);
+  if (iso === today) return "Idag";
+  const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (iso === y) return "Igår";
+  return `${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+async function loadHistory() {
+  const el = $("#history-days");
+  el.innerHTML = "";
+  try {
+    const h = await api("/api/history");
+    const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+    $("#history-meta").textContent = h.total
+      ? `${n(h.total, "rättning", "rättningar")} över ${n(h.days.length, "dag", "dagar")}`
+      : "";
+    if (!h.total) {
+      el.innerHTML = `<div style="font-size:15px; font-style:italic;
+        color:color-mix(in srgb, var(--color-text) 55%, transparent);">
+        Inget rättat än.</div>`;
+      return;
+    }
+    el.innerHTML = h.days.map((d) => `
+      <div class="kt-day">
+        <h3>${esc(dayLabel(d.day))}</h3>
+        ${d.rows.map((r) => {
+          const gap = Math.round(r.confidence_gap * 100);
+          const gapInk = r.confidence_gap >= 0.4 ? "var(--color-accent-2)"
+            : r.confidence_gap >= 0.2 ? "var(--color-accent-700)" : "inherit";
+          return `<div class="kt-hrow" data-v="${esc(r.verdict)}">
+            <span class="mark"></span>
+            <div>
+              <div class="q">${esc(r.prompt)}</div>
+              <div class="meta">
+                <span class="v">${esc((VERDICT[r.verdict] ?? [r.verdict])[0])}</span>
+                <span>${Math.round(r.score * 100)}%</span>
+                <span style="color:${gapInk};">gap ${gap > 0 ? "+" : ""}${gap}</span>
+                <span class="concept">${esc(r.concept_name)}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`).join("");
+  } catch (e) { fail(e); }
+}
+
 /* ── wiring ────────────────────────────────────────────────────────────── */
+$("#nav").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => {
+    const id = b.dataset.go;
+    if (id === "s-today") loadToday();
+    if (id === "s-history") loadHistory();
+    show(id);
+  };
+});
+$("#material").oninput = materialMeta;
+$("#generate").onclick = generate;
+$("#draft-save").onclick = saveDraft;
+$("#draft-back").onclick = () => show("s-import");
+$("#resume-draft").onclick = () => { renderDraft(); show("s-draft"); };
 $("#start").onclick = nextQuestion;
 $("#next").onclick = nextQuestion;
 $("#pause").onclick = async () => { await loadToday(); show("s-today"); };
@@ -275,3 +475,5 @@ if ("serviceWorker" in navigator) {
 }
 
 loadToday();
+materialMeta();
+pendingDraft();
