@@ -37,6 +37,7 @@ class MemoryStore:
         self.items: dict[str, dict] = {}
         self.reviews: list[dict] = []
         self.spend: list[dict] = []
+        self.drafts: dict[str, dict] = {}
 
     def ensure_course(self, name: str) -> str:
         for cid, c in self.courses.items():
@@ -109,6 +110,34 @@ class MemoryStore:
             )
         out.sort(key=lambda r: (r["due_at"] is not None, r["due_at"] or now))
         return out
+
+    def delete_item(self, item_id: str) -> bool:
+        """Remove an item and its review history.
+
+        A concept left with no items can never come up for review again, so it
+        goes too — otherwise progress counts a concept that is unreachable.
+        """
+        item = self.items.pop(item_id, None)
+        if item is None:
+            return False
+        self.reviews = [r for r in self.reviews if r["item_id"] != item_id]
+        if not any(i["concept_id"] == item["concept_id"] for i in self.items.values()):
+            self.concepts.pop(item["concept_id"], None)
+        return True
+
+    # --- drafts awaiting review --------------------------------------------
+
+    def save_draft(self, draft_id: str, payload: dict) -> None:
+        self.drafts[draft_id] = payload
+
+    def get_draft(self, draft_id: str) -> dict | None:
+        return self.drafts.get(draft_id)
+
+    def pop_draft(self, draft_id: str) -> dict | None:
+        return self.drafts.pop(draft_id, None)
+
+    def pending_drafts(self) -> list[dict]:
+        return list(self.drafts.values())
 
     def history(self, course_id: str, limit: int = 200) -> list[dict]:
         """Past reviews, newest first. A log, not a queue — no answers, no
@@ -325,6 +354,52 @@ class PostgresStore:
             row["item_id"] = str(row["item_id"])
             row["concept_id"] = str(row["concept_id"])
         return rows
+
+    def delete_item(self, item_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "delete from items where id = %s returning concept_id", (item_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            # reviews cascade on the foreign key; an emptied concept does not.
+            conn.execute(
+                "delete from concepts c where c.id = %s"
+                " and not exists (select 1 from items i where i.concept_id = c.id)",
+                (row["concept_id"],),
+            )
+        return True
+
+    # --- drafts awaiting review --------------------------------------------
+
+    def save_draft(self, draft_id: str, payload: dict) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "insert into drafts (id, course_id, course_name, payload, n_items, cost_usd)"
+                " values (%s, %s, %s, %s, %s, %s)"
+                " on conflict (id) do update set payload = excluded.payload",
+                (draft_id, payload["course_id"], payload["course_name"],
+                 json.dumps(payload), payload["n_items"], payload["cost_usd"]),
+            )
+
+    def get_draft(self, draft_id: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute("select payload from drafts where id = %s", (draft_id,)).fetchone()
+        return row["payload"] if row else None
+
+    def pop_draft(self, draft_id: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "delete from drafts where id = %s returning payload", (draft_id,)
+            ).fetchone()
+        return row["payload"] if row else None
+
+    def pending_drafts(self) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "select payload from drafts order by created_at desc limit 10"
+            ).fetchall()
+        return [r["payload"] for r in rows]
 
     def history(self, course_id: str, limit: int = 200) -> list[dict]:
         with self._conn() as conn:

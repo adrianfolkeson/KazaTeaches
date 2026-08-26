@@ -274,17 +274,27 @@ function renderGrading(res, answer) {
 let draft = null;
 const cutItems = new Set();
 
-function pendingDraft() {
-  // A generated draft lives only in this page and in the server's staging dict.
-  // Leaving the review screen must therefore leave a way back, or the only way
-  // to recover it is to generate again and pay again.
+async function pendingDraft() {
+  // Asks the server, not this page. A draft used to live in process memory,
+  // which a free instance discards after fifteen idle minutes — less time than
+  // reviewing one takes. Now it is in the database, so a closed tab, a reload
+  // or a sleeping container all leave it recoverable.
   const banner = $("#pending-draft");
-  if (!draft) { banner.hidden = true; return; }
-  const kept = draft.concepts.reduce((n, c) =>
-    n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
-  banner.hidden = false;
-  banner.querySelector("span").textContent =
-    `Ogranskat utkast: ${kept === 1 ? "1 fråga" : kept + " frågor"}, redan betalt.`;
+  try {
+    if (!draft) {
+      const pending = await api("/api/drafts");
+      if (!pending.length) { banner.hidden = true; return; }
+      draft = pending[0];
+      cutItems.clear();
+    }
+    const kept = draft.concepts.reduce((n, c) =>
+      n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
+    banner.hidden = false;
+    banner.querySelector("span").textContent =
+      `Ogranskat utkast: ${kept === 1 ? "1 fråga" : kept + " frågor"}, redan betalt.`;
+  } catch {
+    banner.hidden = true;
+  }
 }
 
 function materialMeta() {
@@ -301,8 +311,9 @@ async function generate() {
   const text = $("#material").value.trim();
   $("#generate").disabled = true;
   $("#generate").textContent = "Genererar…";
+  $("#generate-msg").style.color = "";
   $("#generate-msg").textContent =
-    "Det här tar en stund. Frågor och rubriker skrivs en gång, här.";
+    "Skriver frågor och rubriker — ett par minuter. Lämna inte sidan.";
   try {
     draft = await api("/api/generate", {
       method: "POST",
@@ -444,6 +455,25 @@ async function loadHistory() {
   } catch (e) { fail(e); }
 }
 
+/* ── removing a bad question ───────────────────────────────────────────── */
+// The review gate is meant to catch these before they are scheduled, but some
+// only show themselves once you have been asked them.
+async function dropItem() {
+  if (!current) return;
+  const btn = $("#drop-item");
+  btn.disabled = true;
+  btn.textContent = "Tar bort…";
+  try {
+    await api(`/api/items/${encodeURIComponent(current.item_id)}`, { method: "DELETE" });
+    await nextQuestion();
+  } catch (e) {
+    fail(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Ta bort frågan";
+  }
+}
+
 /* ── wiring ────────────────────────────────────────────────────────────── */
 $("#nav").querySelectorAll("button").forEach((b) => {
   b.onclick = () => {
@@ -457,6 +487,7 @@ $("#material").oninput = materialMeta;
 $("#generate").onclick = generate;
 $("#draft-save").onclick = saveDraft;
 $("#draft-back").onclick = () => show("s-import");
+$("#drop-item").onclick = dropItem;
 $("#resume-draft").onclick = () => { renderDraft(); show("s-draft"); };
 $("#start").onclick = nextQuestion;
 $("#next").onclick = nextQuestion;

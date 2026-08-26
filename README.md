@@ -289,6 +289,17 @@ per concept, and a save button that names the count.
 asserts that identity directly, because if the two ever diverge the halves stop
 composing and nothing else would notice.
 
+**On striking near-duplicates.** The first instinct on seeing four questions per
+concept is to cut them to one, on the flashcard logic that a fact needs a card
+and duplicates are waste. That instinct is wrong here. These are free-text
+retrieval items, and asking "what is emergence" and "why doesn't the team of
+best players win" exercises the same knowledge from two directions — which is
+varied retrieval practice, one of the techniques the app exists to apply, not
+redundancy. What is worth striking is narrower: multiple choice and true/false
+(they let you recognise what you could not produce), rote lists of labels lifted
+off a diagram, and questions that are near-identical in wording rather than in
+subject.
+
 `importance` is `core | supporting | nice_to_know` rather than 1-5. The number
 had no agreed meaning in its middle, and the only thing it is ever used for is
 how many items to write (4 / 3 / 2) and what to study first.
@@ -309,6 +320,26 @@ generate again and pay again.
 Struck items stay on the page, greyed and struck through, instead of
 disappearing. The decision is reversible until save, and a row that vanished
 could not be brought back.
+
+**Drafts live in the database, not in the process.** They started in a module
+dict, which a free instance discards after fifteen idle minutes — less time
+than reviewing a draft takes. A review gate that deletes what you are reviewing
+is not a gate; the first real import was lost to it. `GET /api/drafts` lists
+what is generated but unsaved, so a closed tab or a sleeping container leaves
+the work recoverable rather than gone.
+
+**One generation at a time.** A reloaded page used to start a second run in
+parallel and bill for both. `/api/generate` now returns 409 while one is
+running, and the per-concept calls inside a run go out concurrently — a
+fifteen-concept import went from about fifteen minutes to about two.
+
+### Deleting a question
+
+Not every bad item is visible at review time; some only show themselves once you
+have been asked them. `DELETE /api/items/{id}` removes one along with its review
+history, and removes the concept too if that was its last item — a concept with
+no items can never come up again, so leaving it would have progress report on
+something unreachable. The study screen offers it next to "Visa facit".
 
 ### The self-check
 

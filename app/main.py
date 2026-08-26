@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -149,9 +150,9 @@ def grade_endpoint(inp: GradingInput) -> GradingOutput:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
-# Drafts awaiting review. In memory on purpose: a draft that is worth keeping
-# across a restart is a draft that should have been confirmed.
-_drafts: dict[str, GenerationDraft] = {}
+# One generation at a time. Two runs of the same material is the same bill
+# twice, and a reloaded page used to start a second one silently.
+_generating = threading.Lock()
 
 
 @app.post("/api/generate", response_model=GenerationDraft)
@@ -169,6 +170,13 @@ def generate(req: GenerateRequest) -> GenerationDraft:
     course_name = req.course_name or settings.course_name
     course_id = req.course_id or store.ensure_course(course_name)
 
+    if not _generating.acquire(blocking=False):
+        raise HTTPException(
+            status_code=409,
+            detail="En generering pågår redan. Vänta tills den är klar — "
+                   "att starta en till kostar lika mycket en gång till.",
+        )
+
     before = store.month_spend()
     try:
         draft = generate_draft(
@@ -184,17 +192,27 @@ def generate(req: GenerateRequest) -> GenerationDraft:
         raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=502, detail=f"Generation produced an invalid item: {e}") from e
+    finally:
+        _generating.release()
 
-    _drafts[draft.draft_id] = draft
+    # To the database, not to process memory. Reviewing a draft takes longer
+    # than a free instance stays awake, and a draft that dies while you read it
+    # is a review gate that deletes what you are reviewing.
+    store.save_draft(draft.draft_id, draft.model_dump())
     return draft
 
 
 @app.post("/api/ingest", response_model=IngestResponse)
 def ingest(req: ConfirmRequest) -> IngestResponse:
     """Save a reviewed draft. Everything not explicitly rejected is stored."""
-    draft = _drafts.pop(req.draft_id, None)
-    if draft is None:
-        raise HTTPException(404, "No such draft — generate again before saving.")
+    payload = store.pop_draft(req.draft_id)
+    if payload is None:
+        raise HTTPException(
+            404,
+            "Utkastet finns inte längre. Det sparas nu i databasen, så det här "
+            "ska inte kunna hända igen — men det som redan hann försvinna är borta.",
+        )
+    draft = GenerationDraft(**payload)
 
     rejected_concepts = set(req.reject_concepts)
     rejected_items = set(req.reject_items)
@@ -373,6 +391,27 @@ def progress() -> ProgressResponse:
         due_now=len(store.due_items(course_id)),
         concepts=store.progress(course_id),
     )
+
+
+@app.delete("/api/items/{item_id}")
+def delete_item(item_id: str) -> dict:
+    """Remove an item for good.
+
+    The review gate is meant to catch a bad question before it is scheduled,
+    but it only works if you spot it there. Some only reveal themselves once
+    you have been asked them — and until now there was no way to remove one,
+    at all.
+    """
+    if not store.delete_item(item_id):
+        raise HTTPException(404, "No such item.")
+    return {"deleted": item_id}
+
+
+@app.get("/api/drafts", response_model=list[GenerationDraft])
+def drafts() -> list[GenerationDraft]:
+    """Drafts generated but not yet saved. They cost money and they are only
+    reachable from here once the page that made them is gone."""
+    return [GenerationDraft(**p) for p in store.pending_drafts()]
 
 
 @app.get("/api/history", response_model=HistoryResponse)

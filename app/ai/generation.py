@@ -8,6 +8,7 @@ one loop that has to feel frictionless.
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 from uuid import uuid4
 
@@ -15,6 +16,10 @@ from app.ai.client import cached, parse
 from app.ai.prompts import CONCEPT_SYSTEM, ITEM_SYSTEM
 from app.budget import BudgetExceeded, current_month, estimate_import_usd
 from app.config import settings
+
+# Enough to cut a fifteen-minute import to a couple of minutes; low enough that
+# a burst past the budget cap costs cents, not dollars.
+CONCURRENT_GENERATIONS = 6
 from app.schemas import (
     ITEMS_PER_IMPORTANCE,
     DraftConcept,
@@ -126,10 +131,19 @@ def generate_draft(
         if needed > remaining:
             raise BudgetExceeded(spent, settings.monthly_budget_usd, current_month())
 
+    # One call per concept, and they do not depend on each other. Run
+    # sequentially, fifteen concepts took a quarter of an hour of a spinner —
+    # long enough that the container idled out and took the draft with it.
+    # Bounded concurrency rather than unbounded: the cap check happens once,
+    # before the loop, so a burst of parallel calls can overshoot it, and the
+    # bound is what keeps that overshoot to cents.
+    with ThreadPoolExecutor(max_workers=CONCURRENT_GENERATIONS) as pool:
+        results = list(pool.map(
+            lambda c: (c, generate_items(c, source_text, model=item_model)), concepts))
+
     out: list[DraftConceptWithItems] = []
     n_items = 0
-    for concept in concepts:
-        items = generate_items(concept, source_text, model=item_model)
+    for concept, items in results:
         n_items += len(items)
         out.append(
             DraftConceptWithItems(

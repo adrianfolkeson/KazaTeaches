@@ -62,3 +62,18 @@ create table if not exists api_spend (
     spent_at           timestamptz not null default now()
 );
 create index if not exists api_spend_month_idx on api_spend (month);
+
+-- Generated but unreviewed drafts. In process memory this survived exactly as
+-- long as the container did, and on a free tier that is fifteen idle minutes —
+-- shorter than reviewing a draft takes. A review gate that deletes what you are
+-- reviewing is not a gate.
+create table if not exists drafts (
+    id           uuid primary key,
+    course_id    uuid not null references courses(id) on delete cascade,
+    course_name  text not null,
+    payload      jsonb not null,          -- the whole GenerationDraft
+    n_items      integer not null,
+    cost_usd     double precision not null,
+    created_at   timestamptz not null default now()
+);
+create index if not exists drafts_created_idx on drafts (created_at desc);
