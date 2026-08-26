@@ -13,6 +13,7 @@ anything about the user's data.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import ssl
 from typing import Any
@@ -22,8 +23,26 @@ PORT = 443
 TIMEOUT = 6.0
 
 
+SECRET = re.compile(r"sk-[A-Za-z0-9_\-]{8,}")
+
+
+def redact(text: str) -> str:
+    """Scrub anything secret-shaped out of diagnostic text.
+
+    Written after this file leaked an API key: httpx puts the offending header
+    *value* in its exception message, the probe printed the exception, and the
+    probe answers without a cookie. An exception message is untrusted output,
+    not a description of a failure — it can contain whatever the failing call
+    was holding.
+    """
+    live = os.getenv("ANTHROPIC_API_KEY") or ""
+    if live:
+        text = text.replace(live.strip(), "<redacted>").replace(live, "<redacted>")
+    return SECRET.sub("<redacted>", text)
+
+
 def _err(e: BaseException) -> str:
-    return f"{type(e).__name__}: {str(e)[:160]}"
+    return redact(f"{type(e).__name__}: {str(e)[:160]}")
 
 
 def probe() -> dict[str, Any]:
@@ -107,6 +126,6 @@ def probe() -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001 - the class is the finding
         from app.ai.client import _why
 
-        out["sdk"] = _why(e, depth=6)
+        out["sdk"] = redact(_why(e, depth=6))[:400]
 
     return out

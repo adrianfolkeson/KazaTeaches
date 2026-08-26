@@ -8,6 +8,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# A secret pasted into a dashboard field arrives with whatever whitespace came
+# with it. httpx refuses to put a newline in a header — correctly, that is how
+# header injection works — and the SDK surfaces the refusal as "Connection
+# error", which points at the network rather than at the value. Strip on the way
+# in so every reader downstream gets a clean value.
+for _var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "DATABASE_URL", "KT_ACCESS_KEY"):
+    _raw = os.environ.get(_var)
+    if _raw and _raw != _raw.strip():
+        os.environ[_var] = _raw.strip()
+
 
 class Settings:
     # §5 cost architecture: the expensive model only where judgment quality

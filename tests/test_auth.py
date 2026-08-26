@@ -4,6 +4,8 @@ so its failure modes are worth pinning down."""
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -184,3 +186,46 @@ def test_the_cause_chain_survives_a_cycle():
 def _why_import():
     from app.ai.client import _why
     return _why
+
+
+def test_diagnostics_never_emit_a_secret(monkeypatch):
+    """Regression: the probe leaked a live API key on an unauthenticated route.
+    httpx puts the offending header *value* in its exception message, the probe
+    printed the exception, and /api/health?diag=1 answers without a cookie."""
+    from app.diagnose import redact
+
+    key = "sk-ant-api03-Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", key + "\n")
+
+    for text in (
+        f"Illegal header value b'{key}\\n'",
+        f"x-api-key: {key}",
+        f"outer <- inner: {key} <- deepest",
+    ):
+        out = redact(text)
+        assert key not in out, out
+        assert "<redacted>" in out
+
+
+def test_redaction_catches_a_key_that_is_not_the_configured_one(monkeypatch):
+    """A leak is shaped like a secret whether or not it is *this* process's
+    secret — a stale value, another service's token, a copy-paste."""
+    from app.diagnose import redact
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert "sk-ant-" not in redact("token=sk-ant-api03-SomeOtherKeyEntirely123")
+
+
+def test_whitespace_is_stripped_from_pasted_secrets(monkeypatch):
+    """The bug behind the leak: a key pasted into a dashboard field kept its
+    trailing newline, httpx refused the header, and the SDK called it a
+    connection error."""
+    import importlib
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-clean-value\n")
+    monkeypatch.setenv("KT_ACCESS_KEY", "  spaced  ")
+    import app.config
+
+    importlib.reload(app.config)
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-clean-value"
+    assert os.environ["KT_ACCESS_KEY"] == "spaced"
