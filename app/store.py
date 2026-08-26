@@ -372,7 +372,35 @@ class PostgresStore:
         return rows
 
 
+def _check_dsn(dsn: str) -> str:
+    """Fail on a malformed DATABASE_URL with a message that names the mistake.
+
+    psycopg's own error for this is `missing "=" after "1." in connection info
+    string`, which is true and useless: it is what libpq says after deciding the
+    value is not a URI and trying to parse it as key=value pairs. The usual
+    cause is pasting the dashboard block around the string rather than the
+    string, and nothing in that message says so.
+    """
+    cleaned = dsn.strip()
+    if not cleaned.startswith(("postgresql://", "postgres://")):
+        first = cleaned.split()[0] if cleaned.split() else "(empty)"
+        raise ValueError(
+            f"DATABASE_URL must be a single connection URI starting with "
+            f"postgresql:// — got something starting with {first!r}. "
+            f"Paste only the connection string itself, with no surrounding text, "
+            f"no line breaks and no leading step number."
+        )
+    if "\n" in dsn.strip():
+        raise ValueError("DATABASE_URL contains a line break — it must be one line.")
+    if "[YOUR-PASSWORD]" in cleaned or "[your-password]" in cleaned:
+        raise ValueError(
+            "DATABASE_URL still has the [YOUR-PASSWORD] placeholder in it. "
+            "Replace it with the database password (percent-encode any of @ : / # ? & + %)."
+        )
+    return cleaned
+
+
 def build_store():
     if settings.database_url:
-        return PostgresStore(settings.database_url)
+        return PostgresStore(_check_dsn(settings.database_url))
     return MemoryStore()

@@ -120,3 +120,28 @@ def test_the_memory_store_has_the_same_bootstrap_call():
     from app.store import MemoryStore
 
     MemoryStore().ensure_schema()
+
+
+@pytest.mark.parametrize(
+    "bad,expect",
+    [
+        ("1. Connection string\npostgresql://u:p@h:5432/db", "postgresql://"),
+        ("host: aws-1-eu-west-1.pooler.supabase.com", "postgresql://"),
+        ("postgresql://u:[YOUR-PASSWORD]@h:5432/db", "placeholder"),
+        ("", "postgresql://"),
+    ],
+)
+def test_a_malformed_database_url_says_what_is_wrong(bad, expect):
+    """psycopg's own message for this names a token, not the mistake. A deploy
+    that dies at startup should say why in one line."""
+    from app.store import _check_dsn
+
+    with pytest.raises(ValueError, match=expect):
+        _check_dsn(bad)
+
+
+def test_a_good_database_url_passes_through_stripped():
+    from app.store import _check_dsn
+
+    dsn = "  postgresql://user:pw@aws-1-eu-west-1.pooler.supabase.com:5432/postgres  "
+    assert _check_dsn(dsn) == dsn.strip()
