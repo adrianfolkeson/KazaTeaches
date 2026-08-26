@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.ai.client import AIError, set_meter
 from app.auth import access_key, gate
+from app.diagnose import probe
 from app.ai.generation import generate_draft
 from app.ai.grading import grade
 from app.budget import BudgetExceeded, current_month
@@ -89,8 +90,17 @@ app.middleware("http")(gate)
 
 
 @app.get("/api/health")
-def health() -> dict:
-    return {
+def health(diag: bool = False) -> dict:
+    """The platform's probe, and — with ?diag=1 — an outbound connectivity test.
+
+    The diagnosis is off by default so the health check the platform runs every
+    few seconds stays instant. It is on this unauthenticated route on purpose:
+    when the app cannot reach the API, the person debugging it is outside the
+    gate, and a diagnosis you need a cookie to read is a diagnosis you cannot
+    get at exactly when you need it. It returns error classes and booleans; the
+    key and the data never appear.
+    """
+    body = {
         "store": store.backend,
         "persistent": store.backend == "postgres",
         "grading_model": settings.grading_model,
@@ -103,6 +113,9 @@ def health() -> dict:
         # the dashboard, and the gate keeps everything else out.
         "commit": (os.getenv("RENDER_GIT_COMMIT") or "local")[:7],
     }
+    if diag:
+        body["outbound"] = probe()
+    return body
 
 
 @app.get("/api/budget", response_model=BudgetStatus)
