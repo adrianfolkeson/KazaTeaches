@@ -91,4 +91,22 @@ def probe() -> dict[str, Any]:
 
     # Booleans only. The value never leaves the process.
     out["key_set"] = bool(os.getenv("ANTHROPIC_API_KEY"))
+
+    # 6. The real stack. Everything above tests sockets the way this file opens
+    #    them, which is not necessarily the way httpx2 opens them — and the
+    #    difference between those two is exactly what is being hunted. models.list
+    #    is a GET that consumes no tokens, so this costs nothing and still
+    #    exercises the client, the transport and the TLS path the SDK uses.
+    try:
+        import anthropic
+
+        from app.ai.client import _why
+
+        models = anthropic.Anthropic(timeout=20.0, max_retries=0).models.list(limit=1)
+        out["sdk"] = f"ok ({len(models.data)} model listed)"
+    except Exception as e:  # noqa: BLE001 - the class is the finding
+        from app.ai.client import _why
+
+        out["sdk"] = _why(e, depth=6)
+
     return out
