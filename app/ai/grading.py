@@ -49,7 +49,10 @@ def grade(inp: GradingInput, *, model: str | None = None) -> GradingOutput:
         system=[cached(GRADER_SYSTEM)],
         user=_user_message(inp),
         output_format=GraderJudgment,
-        max_tokens=4000,
+        # Thinking counts against this too. 4000 held for the eval set, whose
+        # answers are a few sentences; a long answer against a five-criterion
+        # rubric would truncate mid-JSON and cost the student their answer.
+        max_tokens=16000,
         effort="high",
     )
 

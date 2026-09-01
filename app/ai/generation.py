@@ -20,6 +20,14 @@ from app.config import settings
 # Enough to cut a fifteen-minute import to a couple of minutes; low enough that
 # a burst past the budget cap costs cents, not dollars.
 CONCURRENT_GENERATIONS = 6
+
+# max_tokens is a ceiling on thinking *plus* output, not on output alone, and
+# these calls run at effort="high" — the reasoning routinely costs more than the
+# answer. At 8000 the concept extraction ran out mid-JSON on a 14k-character
+# import: nothing parseable came back and the tokens were billed regardless.
+# There is no charge for headroom that goes unused, so the ceiling is set well
+# above what either call needs.
+GENERATION_MAX_TOKENS = 32000
 from app.schemas import (
     ITEMS_PER_IMPORTANCE,
     DraftConcept,
@@ -42,7 +50,7 @@ def extract_concepts(source_text: str, *, model: str | None = None) -> list[Draf
         system=[cached(CONCEPT_SYSTEM)],
         user=f"<material>\n{source_text}\n</material>\n\nExtract the concepts.",
         output_format=DraftConceptList,
-        max_tokens=8000,
+        max_tokens=GENERATION_MAX_TOKENS,
         effort="high",
     )
     return result.concepts
@@ -72,7 +80,7 @@ def generate_items(
             f"Write {n_items} items for this concept, grounded in the material above."
         ),
         output_format=DraftItemList,
-        max_tokens=8000,
+        max_tokens=GENERATION_MAX_TOKENS,
         effort="high",
     )
     return _validate(result.items, concept)

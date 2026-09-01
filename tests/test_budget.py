@@ -142,3 +142,31 @@ def test_generation_is_refused_up_front_rather_than_stranded_halfway(monkeypatch
 
     assert r.status_code == 402
     assert store.concepts == {}, "a refused generation must not leave rows behind"
+
+
+def test_a_truncated_response_says_it_ran_out_of_room(monkeypatch):
+    """stop_reason=max_tokens means the ceiling covered thinking as well as
+    output and the answer stopped mid-JSON. 'no parseable output' names the
+    symptom; the ceiling is the cause and the only thing you can act on."""
+    from app.ai import client as c
+
+    class Truncated:
+        stop_reason = "max_tokens"
+        parsed_output = None
+        usage = None
+
+    monkeypatch.setattr(c, "client", lambda: type("C", (), {
+        "messages": type("M", (), {"parse": staticmethod(lambda **kw: Truncated())})()
+    })())
+
+    with pytest.raises(c.AIError, match="ran out of room"):
+        c.parse(model="claude-opus-5", system=[], user="x",
+                output_format=type("X", (), {}), max_tokens=8000)
+
+
+def test_the_generation_ceiling_leaves_room_for_thinking():
+    """Regression: 8000 truncated concept extraction on a real import. These
+    calls run at effort=high, where reasoning routinely outweighs the answer."""
+    from app.ai.generation import GENERATION_MAX_TOKENS
+
+    assert GENERATION_MAX_TOKENS >= 32000

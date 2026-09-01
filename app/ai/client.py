@@ -123,6 +123,16 @@ def parse(
         detail = getattr(response.stop_details, "category", None)
         raise AIError(f"Model declined the request (category={detail}).")
     if response.parsed_output is None:
+        if response.stop_reason == "max_tokens":
+            # Thinking tokens are billed and counted as output, so a generous
+            # `effort` eats the ceiling before the structured answer begins.
+            # The response is truncated mid-JSON: nothing to parse, and the
+            # tokens are charged anyway.
+            raise AIError(
+                f"The model ran out of room before finishing its answer "
+                f"(max_tokens={max_tokens} covers thinking as well as output). "
+                f"Raise max_tokens for this call or lower its effort."
+            )
         raise AIError(f"Model returned no parseable output (stop_reason={response.stop_reason}).")
     return response.parsed_output
 
