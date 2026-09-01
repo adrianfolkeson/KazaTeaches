@@ -66,7 +66,7 @@ def test_a_call_over_the_cap_is_refused_before_it_is_made(metered, monkeypatch):
         raise AssertionError("the API must not be called once the cap is reached")
 
     monkeypatch.setattr(ai_client, "client", lambda: type("C", (), {
-        "messages": type("M", (), {"parse": staticmethod(explode)})()
+        "messages": type("M", (), {"stream": staticmethod(explode)})()
     })())
     metered.record_spend("claude-opus-5", settings.monthly_budget_usd, Usage())
 
@@ -90,7 +90,7 @@ def test_spending_just_under_the_cap_still_goes_through(metered, monkeypatch):
         raise RuntimeError("reached the API")  # far enough for this test
 
     monkeypatch.setattr(ai_client, "client", lambda: type("C", (), {
-        "messages": type("M", (), {"parse": staticmethod(fake_parse)})()
+        "messages": type("M", (), {"stream": staticmethod(fake_parse)})()
     })())
     metered.record_spend("claude-opus-5", settings.monthly_budget_usd - 0.01, Usage())
 
@@ -155,8 +155,15 @@ def test_a_truncated_response_says_it_ran_out_of_room(monkeypatch):
         parsed_output = None
         usage = None
 
+    class Stream:
+        """messages.stream() is a context manager, not a plain call."""
+
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get_final_message(self): return Truncated()
+
     monkeypatch.setattr(c, "client", lambda: type("C", (), {
-        "messages": type("M", (), {"parse": staticmethod(lambda **kw: Truncated())})()
+        "messages": type("M", (), {"stream": staticmethod(lambda **kw: Stream())})()
     })())
 
     with pytest.raises(c.AIError, match="ran out of room"):
@@ -170,3 +177,22 @@ def test_the_generation_ceiling_leaves_room_for_thinking():
     from app.ai.generation import GENERATION_MAX_TOKENS
 
     assert GENERATION_MAX_TOKENS >= 32000
+
+
+def test_an_sdk_usage_error_is_not_reported_as_a_bad_rubric(monkeypatch):
+    """The SDK raises plain ValueError for its own usage errors. Uncaught, it
+    lands in generation.py's rubric validation and is reported as 'Generation
+    produced an invalid item' — sending the reader to inspect a rubric for a
+    fault that is in the request."""
+    from app.ai import client as c
+
+    def refuse(**kwargs):
+        raise ValueError("Streaming is required for operations that may take longer than 10 minutes.")
+
+    monkeypatch.setattr(c, "client", lambda: type("C", (), {
+        "messages": type("M", (), {"stream": staticmethod(refuse)})()
+    })())
+
+    with pytest.raises(c.AIError, match="SDK rejected the request"):
+        c.parse(model="claude-opus-5", system=[], user="x",
+                output_format=type("X", (), {}), max_tokens=32000)

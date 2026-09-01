@@ -101,7 +101,14 @@ def parse(
             raise BudgetExceeded(spent, settings.monthly_budget_usd, current_month())
 
     try:
-        response = client().messages.parse(**kwargs)
+        # Streaming, always. The SDK refuses a non-streaming request whose
+        # max_tokens could outlast a 10-minute HTTP timeout, and these ceilings
+        # are high because thinking is billed against them. Nothing here reads
+        # the incremental events — get_final_message() waits for the whole
+        # answer — so the only thing streaming changes is that the connection
+        # stays alive while the model works.
+        with client().messages.stream(**kwargs) as stream:
+            response = stream.get_final_message()
     except anthropic.AuthenticationError as e:
         raise AIError("No usable Anthropic credentials — set ANTHROPIC_API_KEY.") from e
     except anthropic.RateLimitError as e:
@@ -113,6 +120,12 @@ def parse(
         # DNS failure, a missing CA bundle and a dropped socket all print the
         # same three words, and the difference is the whole diagnosis.
         raise AIError(f"Could not reach the Anthropic API: {_why(e)}") from e
+    except ValueError as e:
+        # The SDK raises plain ValueError for its own usage errors. Left alone
+        # it lands in generation.py's rubric validation and is reported as
+        # "Generation produced an invalid item", sending the reader to inspect
+        # a rubric for a fault that is in the request.
+        raise AIError(f"The Anthropic SDK rejected the request: {_why(e)}") from e
 
     # Meter first: the tokens are billed whether or not the response parses, so
     # a refusal or a malformed output must still count against the cap.

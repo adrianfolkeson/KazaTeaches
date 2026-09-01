@@ -333,6 +333,20 @@ parallel and bill for both. `/api/generate` now returns 409 while one is
 running, and the per-concept calls inside a run go out concurrently — a
 fifteen-concept import went from about fifteen minutes to about two.
 
+### Why every call streams
+
+`app/ai/client.py` uses `messages.stream(...)` + `get_final_message()` rather
+than `messages.parse(...)`, even though nothing reads the incremental events.
+
+The SDK refuses a non-streaming request whose `max_tokens` could outlast a
+10-minute HTTP timeout, and these ceilings are high on purpose: `max_tokens`
+caps thinking *plus* output, and these calls run at `effort="high"` where the
+reasoning routinely costs more than the answer. At 8000 the concept extraction
+ran out mid-JSON on a 14k-character import — nothing parseable came back, and
+the tokens were billed anyway. Unused headroom is not billed, so the ceiling is
+set well above what the calls need and the connection stays open while the model
+works.
+
 ### Starting over
 
 `POST /api/reset` deletes every concept, item and review — the Import screen has
