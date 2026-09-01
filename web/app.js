@@ -341,8 +341,11 @@ function renderDraft() {
   const kept = draft.concepts.reduce((n, c) =>
     n + c.items.filter((i) => !cutItems.has(`${c.name}::${i.prompt}`)).length, 0);
 
+  const skipped = (draft.skipped || []).length
+    ? ` · ${draft.skipped.length} begrepp misslyckades: ${draft.skipped.join(", ")}`
+    : "";
   $("#draft-meta").textContent =
-    `${draft.concepts.length} begrepp · ${draft.n_items} ${draft.n_items === 1 ? "fråga" : "frågor"} · $${draft.cost_usd.toFixed(3)}`;
+    `${draft.concepts.length} begrepp · ${draft.n_items} ${draft.n_items === 1 ? "fråga" : "frågor"} · $${draft.cost_usd.toFixed(3)}${skipped}`;
 
   $("#draft-items").innerHTML = draft.concepts.map((c) =>
     c.items.map((item, idx) => {

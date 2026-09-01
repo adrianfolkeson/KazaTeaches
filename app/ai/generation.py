@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 from uuid import uuid4
 
-from app.ai.client import cached, parse
+from app.ai.client import AIError, cached, parse
 from app.ai.prompts import CONCEPT_SYSTEM, ITEM_SYSTEM
 from app.budget import BudgetExceeded, current_month, estimate_import_usd
 from app.config import settings
@@ -145,13 +145,25 @@ def generate_draft(
     # Bounded concurrency rather than unbounded: the cap check happens once,
     # before the loop, so a burst of parallel calls can overshoot it, and the
     # bound is what keeps that overshoot to cents.
+    def attempt(c: DraftConcept):
+        try:
+            return c, generate_items(c, source_text, model=item_model), None
+        except Exception as e:  # noqa: BLE001 — one concept's failure, not the batch's
+            return c, [], e
+
     with ThreadPoolExecutor(max_workers=CONCURRENT_GENERATIONS) as pool:
-        results = list(pool.map(
-            lambda c: (c, generate_items(c, source_text, model=item_model)), concepts))
+        results = list(pool.map(attempt, concepts))
 
     out: list[DraftConceptWithItems] = []
     n_items = 0
-    for concept, items in results:
+    failed: list[str] = []
+    for concept, items, error in results:
+        if error is not None:
+            # One concept out of fifteen used to lose the whole draft, including
+            # the fourteen already paid for. The API is overloaded sometimes;
+            # that is a reason to hand back what succeeded, not to bin it.
+            failed.append(f"{concept.name}: {error}")
+            continue
         n_items += len(items)
         out.append(
             DraftConceptWithItems(
@@ -162,6 +174,11 @@ def generate_draft(
             )
         )
 
+    if not out:
+        raise AIError(
+            "Inga frågor kunde skrivas. " + (failed[0] if failed else "Okänt fel.")
+        )
+
     return GenerationDraft(
         draft_id=str(uuid4()),
         course_id=course_id,
@@ -169,4 +186,5 @@ def generate_draft(
         concepts=out,
         n_items=n_items,
         cost_usd=round((spend_after() - spend_before) if spend_after else 0.0, 4),
+        skipped=[f.split(":")[0] for f in failed],
     )

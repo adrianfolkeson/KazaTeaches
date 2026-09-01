@@ -196,3 +196,71 @@ def test_an_sdk_usage_error_is_not_reported_as_a_bad_rubric(monkeypatch):
     with pytest.raises(c.AIError, match="SDK rejected the request"):
         c.parse(model="claude-opus-5", system=[], user="x",
                 output_format=type("X", (), {}), max_tokens=32000)
+
+
+def test_an_overloaded_response_is_retried(monkeypatch):
+    """overloaded_error arrives inside an HTTP 200 over a stream, so the SDK's
+    own retry — which keys on the status code — never sees it."""
+    import anthropic
+
+    from app.ai import client as c
+
+    monkeypatch.setattr(c.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class Parsed:
+        stop_reason = "end_turn"
+        parsed_output = "ok"
+        usage = None
+
+    class Stream:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get_final_message(self):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise anthropic.APIStatusError(
+                    "Overloaded", response=httpx_response(200), body={"type": "overloaded_error"})
+            return Parsed()
+
+    monkeypatch.setattr(c, "client", lambda: type("C", (), {
+        "messages": type("M", (), {"stream": staticmethod(lambda **kw: Stream())})()
+    })())
+
+    out = c.parse(model="claude-opus-5", system=[], user="x",
+                  output_format=type("X", (), {}), max_tokens=32000)
+    assert out == "ok"
+    assert calls["n"] == 3, "it should have taken two retries"
+
+
+def test_a_bad_request_is_not_retried(monkeypatch):
+    """Retrying a 400 wastes time on something that will never succeed."""
+    import anthropic
+
+    from app.ai import client as c
+
+    monkeypatch.setattr(c.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class Stream:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get_final_message(self):
+            calls["n"] += 1
+            raise anthropic.APIStatusError(
+                "bad request", response=httpx_response(400), body={"type": "invalid_request_error"})
+
+    monkeypatch.setattr(c, "client", lambda: type("C", (), {
+        "messages": type("M", (), {"stream": staticmethod(lambda **kw: Stream())})()
+    })())
+
+    with pytest.raises(c.AIError):
+        c.parse(model="claude-opus-5", system=[], user="x",
+                output_format=type("X", (), {}), max_tokens=32000)
+    assert calls["n"] == 1, "a 400 must not be retried"
+
+
+def httpx_response(status: int):
+    import httpx2 as httpx
+
+    return httpx.Response(status_code=status, request=httpx.Request("POST", "https://x"))

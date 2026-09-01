@@ -368,3 +368,38 @@ def test_reset_clears_the_days_sitting(client, monkeypatch):
 
     client.post("/api/reset", json={"confirm": "radera allt"})
     assert main_mod._sitting["reviews"] == 0
+
+
+# --- transient API failures ------------------------------------------------
+
+
+def test_one_failed_concept_does_not_bin_the_whole_draft(client, monkeypatch):
+    """Fifteen concepts, one overloaded response, and the fourteen already paid
+    for used to go in the bin with it. The API is overloaded sometimes; that is
+    a reason to hand back what succeeded."""
+    from app.ai.client import AIError
+
+    def flaky(concept, text, model=None):
+        if concept.name == "Deadlock":
+            raise AIError("Anthropic API error 200: overloaded_error")
+        return [item(f"{concept.name} q1")]
+
+    monkeypatch.setattr(generation, "generate_items", flaky)
+
+    draft = client.post("/api/generate", json={"text": "x" * 400}).json()
+    assert draft["n_items"] == 1
+    assert [c["name"] for c in draft["concepts"]] == ["Transaktioner"]
+    assert draft["skipped"] == ["Deadlock"]
+
+
+def test_a_draft_where_everything_failed_is_an_error_not_an_empty_draft(client, monkeypatch):
+    """An empty draft would save cleanly and leave a course with no questions,
+    reporting success for a run that produced nothing."""
+    from app.ai.client import AIError
+
+    monkeypatch.setattr(generation, "generate_items",
+                        lambda *a, **k: (_ for _ in ()).throw(AIError("overloaded")))
+
+    r = client.post("/api/generate", json={"text": "x" * 400})
+    assert r.status_code == 502
+    assert "Inga frågor" in r.json()["detail"]

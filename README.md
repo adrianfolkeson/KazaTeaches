@@ -347,6 +347,24 @@ the tokens were billed anyway. Unused headroom is not billed, so the ceiling is
 set well above what the calls need and the connection stays open while the model
 works.
 
+### When the API is overloaded
+
+`overloaded_error` is Anthropic-side capacity. Over a stream it arrives as an
+error event inside an HTTP 200, so the SDK's own retry — which keys on the
+status code — never sees it. `parse()` retries transient failures itself, four
+attempts with exponential backoff and jitter so six concurrent generations do
+not all return at the same instant and overload it again. A 400 is not retried;
+it will never succeed.
+
+Rate limits and dropped connections are deliberately *not* caught in the inner
+call. Converting them to `AIError` there would make the retry loop re-raise them
+immediately, turning the two most retryable errors there are into fatal ones.
+
+A draft also survives one concept failing. Fifteen concepts with one overloaded
+response used to bin the whole batch including the fourteen already paid for;
+the draft now comes back with what succeeded and names what did not, and only
+errors outright if nothing worked at all.
+
 ### Starting over
 
 `POST /api/reset` deletes every concept, item and review — the Import screen has

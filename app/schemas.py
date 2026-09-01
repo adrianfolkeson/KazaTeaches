@@ -140,6 +140,10 @@ class GenerationDraft(BaseModel):
     concepts: list[DraftConceptWithItems]
     n_items: int
     cost_usd: float
+    # Concepts whose item generation failed. The API is overloaded sometimes,
+    # and losing fourteen paid-for concepts because the fifteenth timed out is
+    # a worse outcome than an incomplete draft you can see the gap in.
+    skipped: list[str] = []
 
 
 class ConfirmRequest(BaseModel):
