@@ -474,6 +474,37 @@ async function dropItem() {
   }
 }
 
+/* ── starting over ─────────────────────────────────────────────────────── */
+const RESET_PHRASE = "radera allt";
+
+async function doReset() {
+  $("#reset-go").disabled = true;
+  $("#reset-go").textContent = "Raderar…";
+  try {
+    const res = await api("/api/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: $("#reset-word").value }),
+    });
+    const d = res.deleted;
+    draft = null;
+    cutItems.clear();
+    $("#reset-confirm").hidden = true;
+    $("#reset-word").value = "";
+    $("#reset-msg").style.color = "";
+    $("#reset-msg").textContent =
+      `Raderat: ${d.concepts} begrepp, ${d.items} frågor, ${d.reviews} rättningar.`;
+    await loadToday();
+    await pendingDraft();
+  } catch (e) {
+    $("#reset-msg").style.color = "var(--color-accent-2)";
+    $("#reset-msg").textContent = e.message;
+  } finally {
+    $("#reset-go").textContent = "Radera";
+    $("#reset-go").disabled = $("#reset-word").value.trim().toLowerCase() !== RESET_PHRASE;
+  }
+}
+
 /* ── wiring ────────────────────────────────────────────────────────────── */
 $("#nav").querySelectorAll("button").forEach((b) => {
   b.onclick = () => {
@@ -488,6 +519,19 @@ $("#generate").onclick = generate;
 $("#draft-save").onclick = saveDraft;
 $("#draft-back").onclick = () => show("s-import");
 $("#drop-item").onclick = dropItem;
+$("#reset-open").onclick = () => {
+  $("#reset-confirm").hidden = false;
+  $("#reset-msg").textContent = "";
+  $("#reset-word").focus();
+};
+$("#reset-cancel").onclick = () => {
+  $("#reset-confirm").hidden = true;
+  $("#reset-word").value = "";
+};
+$("#reset-word").oninput = (e) => {
+  $("#reset-go").disabled = e.target.value.trim().toLowerCase() !== RESET_PHRASE;
+};
+$("#reset-go").onclick = doReset;
 $("#resume-draft").onclick = () => { renderDraft(); show("s-draft"); };
 $("#start").onclick = nextQuestion;
 $("#next").onclick = nextQuestion;

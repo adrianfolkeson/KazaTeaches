@@ -333,6 +333,22 @@ parallel and bill for both. `/api/generate` now returns 409 while one is
 running, and the per-concept calls inside a run go out concurrently — a
 fifteen-concept import went from about fifteen minutes to about two.
 
+### Starting over
+
+`POST /api/reset` deletes every concept, item and review — the Import screen has
+it as "Radera allt innehåll", behind typing the phrase. The access gate already
+stops other people; what the phrase stops is a mis-click and a stray fetch,
+neither of which types a word.
+
+It keeps two things on purpose. The **spend ledger**, because that money was
+spent whether or not the questions it bought still exist, and zeroing it would
+make the monthly cap lie for the rest of the month. And the **course row**,
+which is reused and inert when empty.
+
+To keep the old course instead of deleting it, change `KT_COURSE_NAME`: the
+questions stay in the database, unreachable until the name is changed back. The
+app shows one course at a time and has no switcher.
+
 ### Deleting a question
 
 Not every bad item is visible at review time; some only show themselves once you

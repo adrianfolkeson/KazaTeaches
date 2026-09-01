@@ -36,6 +36,7 @@ from app.schemas import (
     HistoryResponse,
     HistoryRow,
     IngestResponse,
+    ResetRequest,
     SessionQueue,
     BudgetStatus,
     ProgressResponse,
@@ -405,6 +406,28 @@ def delete_item(item_id: str) -> dict:
     if not store.delete_item(item_id):
         raise HTTPException(404, "No such item.")
     return {"deleted": item_id}
+
+
+# Typing this is the guard. The access gate already stops anyone else, so what
+# is left to protect against is a mis-click and a stray fetch — and neither of
+# those types a word.
+RESET_PHRASE = "radera allt"
+
+
+@app.post("/api/reset")
+def reset(req: ResetRequest) -> dict:
+    """Delete every concept, item and review. Starting a new course.
+
+    Keeps the spend ledger: that money is spent whether or not the questions it
+    bought still exist, and zeroing it would make the monthly cap lie.
+    """
+    if req.confirm.strip().lower() != RESET_PHRASE:
+        raise HTTPException(422, f'Skriv "{RESET_PHRASE}" för att bekräfta.')
+
+    counts = store.reset_content()
+    # Yesterday's sitting counted items that no longer exist.
+    _sitting.update(day=None, asked=set(), attempts={}, reviews=0, started=None)
+    return {"deleted": counts}
 
 
 @app.get("/api/drafts", response_model=list[GenerationDraft])

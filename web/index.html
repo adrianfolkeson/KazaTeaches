@@ -178,6 +178,31 @@
            font-size:13px; line-height:1.5; color:color-mix(in srgb, var(--color-text) 55%, transparent);">
         PDF- och filimport finns inte än. Kopiera texten ur dokumentet så länge — bilder
         och formler följer ändå inte med.</div>
+
+      <div style="margin-top:var(--space-6); padding-top:var(--space-3);
+           border-top:1px solid color-mix(in srgb, var(--color-text) 12%, transparent);">
+        <div class="kt-eyebrow" style="color:var(--color-accent-2);">Börja om</div>
+        <p style="font-size:13px; line-height:1.5; margin:var(--space-1) 0 var(--space-2);
+           color:color-mix(in srgb, var(--color-text) 60%, transparent);">
+          Raderar alla begrepp, frågor och rättningar. Går inte att ångra.
+          Kostnaden som redan är spenderad räknas kvar.</p>
+        <button class="kt-link" id="reset-open" style="padding:0;">Radera allt innehåll</button>
+        <div id="reset-confirm" hidden style="margin-top:var(--space-2);">
+          <label for="reset-word" style="font-size:13px;">Skriv <code>radera allt</code> för att bekräfta:</label>
+          <input id="reset-word" type="text" autocomplete="off" spellcheck="false"
+                 style="width:100%; box-sizing:border-box; margin-top:var(--space-1);
+                        padding:var(--space-2); font-family:var(--font-body); font-size:15px;
+                        background:var(--color-neutral-100); border-radius:var(--radius-md);
+                        border:1px solid color-mix(in srgb, var(--color-text) 14%, transparent);">
+          <div style="display:flex; gap:var(--space-2); margin-top:var(--space-2);">
+            <button class="kt-btn kt-btn-ghost" id="reset-cancel"
+                    style="min-height:44px; font-size:14px;">Avbryt</button>
+            <button class="kt-btn" id="reset-go" disabled
+                    style="min-height:44px; font-size:14px; background:var(--color-accent-2);">Radera</button>
+          </div>
+        </div>
+        <div id="reset-msg" style="font-size:13px; margin-top:var(--space-2);"></div>
+      </div>
     </div>
   </section>
 

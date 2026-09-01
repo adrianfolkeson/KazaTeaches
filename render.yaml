@@ -39,6 +39,12 @@ services:
         generateValue: true
 
       # Spend cap. The ledger lives in Postgres, so this survives a redeploy.
+      # Which course the app is showing. Changing this gives a blank slate and
+      # leaves the old course's questions in the database untouched, reachable
+      # again by changing it back. The app shows one course at a time.
+      - key: KT_COURSE_NAME
+        value: "Informationssystem och data"
+
       - key: KT_MONTHLY_BUDGET_USD
         value: "20"
       - key: KT_MONTHLY_TARGET_USD

@@ -18,6 +18,7 @@ from app.schemas import (
     DraftConcept,
     DraftItem,
     RubricCriterion,
+    RubricHit,
 )
 from app.store import MemoryStore
 
@@ -296,3 +297,74 @@ def test_deleting_an_item_takes_its_review_history_with_it(client, monkeypatch):
 
 def test_deleting_an_unknown_item_is_not_a_silent_success(client):
     assert client.delete("/api/items/does-not-exist").status_code == 404
+
+
+# --- starting over ---------------------------------------------------------
+
+
+def test_reset_clears_the_content_but_not_the_spend_ledger(client):
+    """The money was spent whether or not the questions it bought still exist.
+    Zeroing the ledger would make the monthly cap lie for the rest of the
+    month — the one number that must survive a wipe."""
+    from app.budget import current_month
+
+    draft = client.post("/api/generate", json={"text": "x" * 400}).json()
+    client.post("/api/ingest", json={"draft_id": draft["draft_id"]})
+    client.store.record_spend("claude-opus-5", 3.50, type("U", (), {
+        "input_tokens": 0, "output_tokens": 0,
+        "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0})())
+
+    r = client.post("/api/reset", json={"confirm": "radera allt"})
+    assert r.status_code == 200
+    assert r.json()["deleted"] == {"concepts": 2, "items": 4, "reviews": 0}
+
+    assert client.store.concepts == {}
+    assert client.store.items == {}
+    assert client.get("/api/session").json()["due_total"] == 0
+    assert client.store.month_spend(current_month()) == pytest.approx(3.50)
+
+
+def test_reset_without_the_phrase_deletes_nothing(client):
+    """The access gate stops other people; the phrase stops a mis-click and a
+    stray fetch, neither of which types a word."""
+    draft = client.post("/api/generate", json={"text": "x" * 400}).json()
+    client.post("/api/ingest", json={"draft_id": draft["draft_id"]})
+
+    for body in ({"confirm": ""}, {"confirm": "ja"}, {"confirm": "delete all"}):
+        assert client.post("/api/reset", json=body).status_code == 422
+    assert len(client.store.items) == 4
+
+
+def test_reset_accepts_the_phrase_regardless_of_case_and_padding(client):
+    assert client.post("/api/reset", json={"confirm": "  Radera Allt "}).status_code == 200
+
+
+def test_reset_also_clears_an_unreviewed_draft(client):
+    """A draft left over from the old course would otherwise reappear on the
+    Import screen as a pending banner for content that is gone."""
+    client.post("/api/generate", json={"text": "x" * 400})
+    assert len(client.get("/api/drafts").json()) == 1
+
+    client.post("/api/reset", json={"confirm": "radera allt"})
+    assert client.get("/api/drafts").json() == []
+
+
+def test_reset_clears_the_days_sitting(client, monkeypatch):
+    """The sitting counts reviews against items that no longer exist; leaving
+    it would cap a fresh course with yesterday's spent slots."""
+    from app import main as main_mod
+
+    monkeypatch.setattr("app.ai.grading.parse", lambda **kw: __import__(
+        "app.schemas", fromlist=["GraderJudgment"]).GraderJudgment(
+        rubric_hits=[RubricHit(id="atomicity", status="hit", note=""),
+                     RubricHit(id="commit_rollback", status="miss", note="")],
+        feedback="x", followup_question="y"))
+
+    draft = client.post("/api/generate", json={"text": "x" * 400}).json()
+    client.post("/api/ingest", json={"draft_id": draft["draft_id"]})
+    item_id = next(iter(client.store.items))
+    client.post("/api/review", json={"item_id": item_id, "answer": "a", "confidence": 0.5})
+    assert main_mod._sitting["reviews"] == 1
+
+    client.post("/api/reset", json={"confirm": "radera allt"})
+    assert main_mod._sitting["reviews"] == 0

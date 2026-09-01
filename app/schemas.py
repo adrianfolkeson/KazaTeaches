@@ -170,6 +170,13 @@ class DueItem(BaseModel):
     attempts_allowed: int = 0
 
 
+class ResetRequest(BaseModel):
+    """Deleting everything is one word away from doing nothing, so the word is
+    required rather than a boolean a stray request could set."""
+
+    confirm: str
+
+
 class SessionQueue(BaseModel):
     """Today's sitting. `due_total` is everything overdue; `items` is what fits
     in one session, interleaved across concepts."""

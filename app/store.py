@@ -125,6 +125,22 @@ class MemoryStore:
             self.concepts.pop(item["concept_id"], None)
         return True
 
+    def reset_content(self) -> dict[str, int]:
+        """Delete every concept, item and review. Returns what went.
+
+        Not the spend ledger: that money was spent whether or not the questions
+        it bought still exist, and zeroing it would make the monthly cap lie for
+        the rest of the month. Not the course row either — it is reused, and an
+        empty course is inert.
+        """
+        counts = {"concepts": len(self.concepts), "items": len(self.items),
+                  "reviews": len(self.reviews)}
+        self.concepts.clear()
+        self.items.clear()
+        self.reviews.clear()
+        self.drafts.clear()
+        return counts
+
     # --- drafts awaiting review --------------------------------------------
 
     def save_draft(self, draft_id: str, payload: dict) -> None:
@@ -369,6 +385,17 @@ class PostgresStore:
                 (row["concept_id"],),
             )
         return True
+
+    def reset_content(self) -> dict[str, int]:
+        with self._conn() as conn:
+            counts = {
+                k: conn.execute(f"select count(*) as n from {k}").fetchone()["n"]
+                for k in ("concepts", "items", "reviews")
+            }
+            # Order matters: foreign keys point backwards through this list.
+            for table in ("reviews", "items", "concepts", "drafts"):
+                conn.execute(f"delete from {table}")
+        return counts
 
     # --- drafts awaiting review --------------------------------------------
 
